@@ -1,6 +1,3 @@
--- // Chloe X - Advanced Hub & Information Manager Module
--- // Integrated module providing Performance, Player, Fly, Freecam, AFK, and Server Managers.
-
 return function(Window, Tabs)
 	local Chloex = (getgenv and getgenv().ChloeX) or {}
 	local chloex = Chloex.Notify or function(msg, delay, color, title, desc)
