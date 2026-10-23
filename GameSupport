@@ -1,0 +1,30 @@
+return {
+    ["Blox Fruits"] = {
+        Folder = "BloxFruits", -- Nama folder config otomatis di executor
+        GameId = 994732206,   -- Universe ID Blox Fruits (Sea 1, 2, 3 & Raids)
+        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/main/Scripts/BloxFruits.lua",
+        Version = "v2.1.0",
+        Date = "22 Oct 2026",
+    },
+    ["Fish It"] = {
+        Folder = "FishIt",
+        GameId = 121864768012064,
+        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/main/Scripts/FishIt.lua",
+        Version = "v1.2.4",
+        Date = "22 Oct 2026",
+    },
+    ["BedWars"] = {
+        Folder = "BedWars",
+        GameId = 2619619496, -- Universe ID Bedwars (Lobby & semua Match room)
+        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/main/Scripts/BedWars.lua",
+        Version = "v3.0.1",
+        Date = "23 Oct 2026",
+    },
+    ["Baseplate Testing"] = {
+        Folder = "BaseplateTest",
+        GameId = 9271746647, -- Universe ID place pengujian
+        Script = "",         -- Kosong jika hanya test UI
+        Version = "v0.0.1",
+        Date = "23 Oct 2026",
+    }
+}
