@@ -30,15 +30,10 @@ local DEFAULT_CONFIG = {
 
 local scriptStartTime = os.time()
 
--- // Clean up any previous session if still running
-if getgenv().ChloeX_Instance then
-	pcall(function()
-		getgenv().ChloeX_Instance:DestroyGui()
-	end)
-	getgenv().ChloeX_Instance = nil
+-- // Global session tracking
+if getgenv().ChloeX_Running == nil then
+	getgenv().ChloeX_Running = false
 end
-
-getgenv().ChloeX_Running = true
 
 local allConnections = {}
 local resizeDebounceTable = {}
@@ -909,50 +904,75 @@ function Chloex:MakeNotify(notifyconfig)
 	end
 
 	task.spawn(function()
-		if not sv.coregui:FindFirstChild("NotifyGui") then
-			local notifygui = instance.screengui(sv.coregui)
+		local notifyParent = (gethui and gethui()) or sv.coregui
+		if not notifyParent:FindFirstChild("NotifyGui") then
+			local notifygui = instance.screengui(notifyParent)
 			notifygui.Name = "NotifyGui"
 			notifygui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 		end
 
-		if not sv.coregui.NotifyGui:FindFirstChild("NotifyLayout") then
-			local notifylayout = instance.frame(sv.coregui.NotifyGui)
+		local notifyGuiInstance = notifyParent:FindFirstChild("NotifyGui")
+		local notifylayout = notifyGuiInstance:FindFirstChild("NotifyLayout")
+		if not notifylayout then
+			notifylayout = instance.frame(notifyGuiInstance)
 			notifylayout.Name = "NotifyLayout"
 			notifylayout.AnchorPoint = Vector2.new(1, 1)
 			notifylayout.Position = UDim2.new(1, -30, 1, -30)
 			notifylayout.Size = UDim2.new(0, 320, 1, 0)
 			notifylayout.BackgroundTransparency = 1
 			notifylayout.BorderSizePixel = 0
+			notifylayout.ClipsDescendants = false
 
-			sv.coregui.NotifyGui.NotifyLayout.ChildRemoved:Connect(function()
-				local count = 0
-				for _, v in ipairs(sv.coregui.NotifyGui.NotifyLayout:GetChildren()) do
-					sv.ts
-						:Create(
-							v,
-							TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
-							{ Position = UDim2.new(0, 0, 1, -((v.Size.Y.Offset + 12) * count)) }
-						)
-						:Play()
-					count = count + 1
+			local listLayout = Instance.new("UIListLayout")
+			listLayout.Name = "NotifyList"
+			listLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+			listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			listLayout.FillDirection = Enum.FillDirection.Vertical
+			listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			listLayout.Padding = UDim.new(0, 8)
+			listLayout.Parent = notifylayout
+		else
+			-- // Ensure UIListLayout is present and old manual listener is removed
+			if not notifylayout:FindFirstChildOfClass("UIListLayout") then
+				local listLayout = Instance.new("UIListLayout")
+				listLayout.Name = "NotifyList"
+				listLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+				listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+				listLayout.FillDirection = Enum.FillDirection.Vertical
+				listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				listLayout.Padding = UDim.new(0, 8)
+				listLayout.Parent = notifylayout
+			end
+		end
+
+		-- // Anti-Spam: Purge oldest notification if 2 or more are already displayed
+		local currentNotifs = {}
+		for _, child in ipairs(notifylayout:GetChildren()) do
+			if child:IsA("Frame") and child.Name == "NotifyFrame" then
+				table.insert(currentNotifs, child)
+			end
+		end
+
+		if #currentNotifs >= 2 then
+			for i = 1, #currentNotifs - 1 do
+				local oldN = currentNotifs[i]
+				if oldN and oldN.Parent then
+					pcall(function() oldN:Destroy() end)
 				end
-			end)
+			end
 		end
 
-		local notifyposheigh = 0
-		for _, v in ipairs(sv.coregui.NotifyGui.NotifyLayout:GetChildren()) do
-			notifyposheigh = -v.Position.Y.Offset + v.Size.Y.Offset + 12
-		end
+		local notifyOrder = os.clock() * 1000
 
-		local notifyframe = instance.frame(sv.coregui.NotifyGui.NotifyLayout)
+		local notifyframe = instance.frame(notifylayout)
 		notifyframe.Name = "NotifyFrame"
 		notifyframe.BackgroundTransparency = 1
 		notifyframe.BorderSizePixel = 0
-		notifyframe.Size = UDim2.new(1, 0, 0, 150)
-		notifyframe.AnchorPoint = Vector2.new(0, 1)
-		notifyframe.Position = UDim2.new(0, 0, 1, -notifyposheigh)
+		notifyframe.Size = UDim2.new(1, 0, 0, 65)
+		notifyframe.LayoutOrder = math.floor(notifyOrder)
+		notifyframe.ClipsDescendants = false
 
-		local notifyframereal = instance.frame(notifyframe)
+				local notifyframereal = instance.frame(notifyframe)
 		notifyframereal.Name = "NotifyFrameReal"
 		notifyframereal.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 		notifyframereal.BorderSizePixel = 0
@@ -973,7 +993,12 @@ function Chloex:MakeNotify(notifyconfig)
 		icon.Size = UDim2.new(0, 50, 0, 50)
 		icon.Position = UDim2.new(0, -12, 0.9, 0)
 		icon.AnchorPoint = Vector2.new(0, 0.5)
-		icon.Image = "rbxassetid://6859372539"
+		local defaultNotifyIcon = "rbxassetid://6859372539"
+		local chosenIcon = notifyconfig.Image or notifyconfig.Icon or defaultNotifyIcon
+		if type(chosenIcon) == "string" and not chosenIcon:find("rbxassetid://") and not chosenIcon:find("http") then
+			chosenIcon = "rbxassetid://" .. chosenIcon
+		end
+		icon.Image = chosenIcon
 
 		local titleHolder = instance.frame(top)
 		titleHolder.Name = "TitleHolder"
@@ -989,7 +1014,7 @@ function Chloex:MakeNotify(notifyconfig)
 		titleLayout.Padding = UDim.new(0, 4)
 		titleLayout.Parent = titleHolder
 
-		local title = instance.textlabel(titleHolder)
+				local title = instance.textlabel(titleHolder)
 		title.Name = "Title"
 		title.Font = Enum.Font.GothamBold
 		title.Text = notifyconfig.Title or ""
@@ -1067,6 +1092,15 @@ function Chloex:MakeNotify(notifyconfig)
 						{ Position = UDim2.new(0, 400, 0, 0) }
 					)
 					:Play()
+				if notifyframe and notifyframe.Parent then
+					sv.ts
+						:Create(
+							notifyframe,
+							TweenInfo.new(notifyconfig.Time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+							{ Size = UDim2.new(1, 0, 0, 0) }
+						)
+						:Play()
+				end
 				task.wait(notifyconfig.Time / 1.2)
 			end
 			if notifyframe and notifyframe.Parent then
@@ -1195,274 +1229,986 @@ function Chloex:MakeOverlay(overlayconfig)
 	return overlayfunc
 end
 
-function Chloex:Watermark(watermarkconfig)
-	watermarkconfig = watermarkconfig or {}
-	local titleText = watermarkconfig.Title or "Chloe X"
-	local versionText = watermarkconfig.Version
-	local showFps = (watermarkconfig.ShowFPS ~= false)
-	local showPing = (watermarkconfig.ShowPing ~= false)
-	local showTime = (watermarkconfig.ShowTime ~= false)
-	local isVisible = (watermarkconfig.Visible ~= false)
-	local isDraggable = (watermarkconfig.Draggable ~= false)
-	local accentColor = watermarkconfig.Color or Color3.fromRGB(0, 208, 255)
-	local font = watermarkconfig.Font or Enum.Font.GothamBold
+function Chloex:Watermark()
+	return {
+		SetVisible = function() end,
+		SetTitle = function() end,
+		SetText = function() end,
+		Destroy = function() end,
+	}
+end
 
-	local parentGui = watermarkconfig.Parent
-	local createdGui = false
-	if not parentGui then
-		local core = game:GetService("CoreGui")
-		local chloexGui = core:FindFirstChild("Chloeex")
-		if chloexGui then
-			parentGui = chloexGui
-		else
-			local pcallOk, result = pcall(function()
-				local g = Instance.new("ScreenGui")
-				g.Name = "ChloeX_WatermarkGui"
-				g.ResetOnSpawn = false
-				g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-				if gethui then
-					g.Parent = gethui()
-				elseif syn and syn.protect_gui then
-					syn.protect_gui(g)
-					g.Parent = core
-				else
-					g.Parent = core
-				end
-				return g
-			end)
-			if pcallOk and result then
-				parentGui = result
-				createdGui = true
+-- // Cinematic Glass Shards and Fatal Corrupted Glitch System
+-- // Preserved from LoadingScreen_CorruptGlitch.lua (File-level scope to avoid 200 local register limit)
+-- // Strictly Hitam, Biru Muda (Cyan), Biru Tua (Royal Blue)
+local GlassLifecycle = {}
+
+do
+	local Debris = game:GetService("Debris")
+	local TweenService = game:GetService("TweenService")
+
+	local COLOR_BLACK = Color3.fromRGB(10, 10, 14)       -- // Hitam
+	local COLOR_LIGHT_BLUE = Color3.fromRGB(0, 225, 255)  -- // Biru Muda (Electric Cyan)
+	local COLOR_DARK_BLUE = Color3.fromRGB(15, 60, 185)   -- // Biru Tua (Deep Royal/Navy Blue)
+
+	local GLITCH_COLORS = {
+		COLOR_BLACK,
+		COLOR_LIGHT_BLUE,
+		COLOR_DARK_BLUE,
+	}
+
+	local GLASS_COLORS = {
+		Color3.fromRGB(0, 235, 255),  -- // Biru Muda Glass
+		Color3.fromRGB(15, 65, 190),  -- // Biru Tua Glass
+		Color3.fromRGB(60, 180, 255), -- // Biru Muda Medium
+		Color3.fromRGB(12, 12, 16),   -- // Hitam Obsidian Glass
+		Color3.fromRGB(8, 30, 110),   -- // Biru Tua Pekat
+	}
+
+	local CORRUPT_TITLES = {
+		"FATAL_ERR // 0x0000007E",
+		"U$3r !nt3rf@c3 L1br@ry...",
+		"CHLOE_X::VRAM_CORRUPT",
+		"01000011 01001000 01001100",
+		"KERNEL_PANIC: DUMPING...",
+		"ERR_MEM_OVERFLOW_0x7F",
+	}
+
+	local CORRUPT_STATUS = {
+		"0xDEADBEEF // CORRUPT",
+		"VRAM_SECTOR_FAIL...",
+		"SYS_REBOOT_TRIGGERED",
+		"10110010 01101111",
+		"STACK_SMASHING_DETECTED",
+	}
+
+	local ERRORCODE_GLITCH_TEXTS = {
+		"010101010101010101010101",
+		"010101010 // FATAL_ERR",
+		"ERR_0x0000007E :: 01010101",
+		"010101010101 [STACK_OVERFLOW]",
+		"01100011 01101000 01101100",
+		"0xDEADBEEF // 010101010",
+		"101010101010101010101010",
+		"KERNEL_PANIC: 010101010101",
+		"VRAM_CORRUPT // 010101010",
+		"010101010101010101010101",
+		"SYS_BREAK: 010101010",
+		"0xFA17_VRAM_PAGE_FAULT",
+		"0101010101010101",
+		"MEMORY_DUMP // 01010101",
+	}
+
+	function GlassLifecycle.createGlassShard(parent, pos, size, rot, color)
+		local shard = Instance.new("Frame")
+		shard.Name = "GlassShard"
+		shard.AnchorPoint = Vector2.new(0.5, 0.5)
+		shard.Position = pos
+		shard.Size = size
+		shard.BackgroundColor3 = color or GLASS_COLORS[math.random(1, #GLASS_COLORS)]
+		shard.BorderSizePixel = 0
+		shard.Rotation = rot or math.random(-180, 180)
+		shard.BackgroundTransparency = math.random(15, 35) / 100
+		shard.ZIndex = 5005
+		shard.Parent = parent
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 1)
+		corner.Parent = shard
+
+		local grad = Instance.new("UIGradient")
+		grad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, COLOR_LIGHT_BLUE),
+			ColorSequenceKeypoint.new(0.5, shard.BackgroundColor3),
+			ColorSequenceKeypoint.new(1, COLOR_DARK_BLUE),
+		})
+		grad.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.05),
+			NumberSequenceKeypoint.new(0.5, 0.25),
+			NumberSequenceKeypoint.new(1, 0.65),
+		})
+		grad.Rotation = math.random(-45, 45)
+		grad.Parent = shard
+
+		return shard
+	end
+
+	function GlassLifecycle.playFatalGlitch(fxHolder, ui, duration)
+		duration = duration or 0.32
+		local cardFrame = ui.card
+		local strokeInstance = ui.cardStroke
+		local titleLabel = ui.title
+		local statusLabel = ui.statusText
+
+		local origPos = cardFrame.Position
+		local absPos = cardFrame.AbsolutePosition
+		local absSize = cardFrame.AbsoluteSize
+		local origCardBg = cardFrame.BackgroundColor3
+		local origTitleText = titleLabel.Text
+		local origStatusText = statusLabel.Text
+		local origTitleColor = titleLabel.TextColor3
+		local origStatusColor = statusLabel.TextColor3
+
+		local endTime = os.clock() + duration
+
+		local cyanGhost = Instance.new("Frame")
+		cyanGhost.Name = "GlitchGhost_Cyan"
+		cyanGhost.BackgroundColor3 = COLOR_LIGHT_BLUE
+		cyanGhost.BackgroundTransparency = 0.45
+		cyanGhost.BorderSizePixel = 0
+		cyanGhost.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+		cyanGhost.Position = UDim2.new(0, absPos.X - 10, 0, absPos.Y - 2)
+		cyanGhost.ZIndex = 4998
+		cyanGhost.Parent = fxHolder
+		Instance.new("UICorner", cyanGhost).CornerRadius = UDim.new(0, 8)
+		Debris:AddItem(cyanGhost, duration + 0.1)
+
+		local darkBlueGhost = Instance.new("Frame")
+		darkBlueGhost.Name = "GlitchGhost_DarkBlue"
+		darkBlueGhost.BackgroundColor3 = COLOR_DARK_BLUE
+		darkBlueGhost.BackgroundTransparency = 0.45
+		darkBlueGhost.BorderSizePixel = 0
+		darkBlueGhost.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+		darkBlueGhost.Position = UDim2.new(0, absPos.X + 10, 0, absPos.Y + 3)
+		darkBlueGhost.ZIndex = 4997
+		darkBlueGhost.Parent = fxHolder
+		Instance.new("UICorner", darkBlueGhost).CornerRadius = UDim.new(0, 8)
+		Debris:AddItem(darkBlueGhost, duration + 0.1)
+
+		local blackGhost = Instance.new("Frame")
+		blackGhost.Name = "GlitchGhost_Black"
+		blackGhost.BackgroundColor3 = COLOR_BLACK
+		blackGhost.BackgroundTransparency = 0.3
+		blackGhost.BorderSizePixel = 0
+		blackGhost.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+		blackGhost.Position = UDim2.new(0, absPos.X - 4, 0, absPos.Y + 4)
+		blackGhost.ZIndex = 4996
+		blackGhost.Parent = fxHolder
+		Instance.new("UICorner", blackGhost).CornerRadius = UDim.new(0, 8)
+		Debris:AddItem(blackGhost, duration + 0.1)
+
+		local slicePool = {}
+		for i = 1, 12 do
+			local sl = Instance.new("Frame")
+			sl.Name = "GlitchSlice"
+			sl.BorderSizePixel = 0
+			sl.ZIndex = 5003
+			sl.Visible = false
+			sl.Parent = fxHolder
+			table.insert(slicePool, sl)
+			Debris:AddItem(sl, duration + 0.1)
+		end
+
+		while os.clock() < endTime do
+			local jx = math.random(-14, 14)
+			local jy = math.random(-5, 5)
+			local rotJitter = (math.random(-10, 10) / 10) * 1.5
+			cardFrame.Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + jx, origPos.Y.Scale, origPos.Y.Offset + jy)
+			cardFrame.Rotation = rotJitter
+
+			if cyanGhost and cyanGhost.Parent then
+				cyanGhost.Position = UDim2.new(0, absPos.X + jx - math.random(8, 16), 0, absPos.Y + jy + math.random(-3, 3))
+				cyanGhost.BackgroundTransparency = math.random(30, 60) / 100
+			end
+			if darkBlueGhost and darkBlueGhost.Parent then
+				darkBlueGhost.Position = UDim2.new(0, absPos.X + jx + math.random(8, 16), 0, absPos.Y + jy + math.random(-3, 3))
+				darkBlueGhost.BackgroundTransparency = math.random(30, 60) / 100
+			end
+			if blackGhost and blackGhost.Parent then
+				blackGhost.Position = UDim2.new(0, absPos.X + jx - math.random(3, 8), 0, absPos.Y + jy + math.random(-2, 4))
+				blackGhost.BackgroundTransparency = math.random(15, 45) / 100
+			end
+
+			local bgDice = math.random(1, 10)
+			if bgDice == 1 then
+				cardFrame.BackgroundColor3 = COLOR_LIGHT_BLUE
+			elseif bgDice <= 4 then
+				cardFrame.BackgroundColor3 = COLOR_DARK_BLUE
 			else
-				local player = game:GetService("Players").LocalPlayer
-				if player then
-					local g = Instance.new("ScreenGui")
-					g.Name = "ChloeX_WatermarkGui"
-					g.ResetOnSpawn = false
-					g.Parent = player:WaitForChild("PlayerGui")
-					parentGui = g
-					createdGui = true
+				cardFrame.BackgroundColor3 = COLOR_BLACK
+			end
+
+			for _, sl in ipairs(slicePool) do
+				if math.random(1, 10) > 2 then
+					local col = GLITCH_COLORS[math.random(1, #GLITCH_COLORS)]
+					local sH = (math.random(1, 3) == 1) and math.random(10, 20) or math.random(2, 6)
+					local sY = absPos.Y + math.random(0, absSize.Y - sH)
+					local sW = absSize.X + math.random(-30, 40)
+					local sX = absPos.X + math.random(-22, 22)
+
+					sl.BackgroundColor3 = col
+					sl.BackgroundTransparency = (col == COLOR_BLACK) and 0.15 or 0.3
+					sl.Size = UDim2.new(0, sW, 0, sH)
+					sl.Position = UDim2.new(0, sX, 0, sY)
+					sl.Visible = true
+				else
+					sl.Visible = false
+				end
+			end
+
+			if math.random(1, 10) > 4 then
+				titleLabel.Text = CORRUPT_TITLES[math.random(1, #CORRUPT_TITLES)]
+				titleLabel.TextColor3 = (math.random(1, 2) == 1) and COLOR_LIGHT_BLUE or Color3.fromRGB(255, 255, 255)
+				statusLabel.Text = CORRUPT_STATUS[math.random(1, #CORRUPT_STATUS)]
+				statusLabel.TextColor3 = COLOR_LIGHT_BLUE
+			else
+				titleLabel.Text = origTitleText
+				titleLabel.TextColor3 = origTitleColor
+				statusLabel.Text = origStatusText
+				statusLabel.TextColor3 = origStatusColor
+			end
+
+			if strokeInstance then
+				strokeInstance.Color = (math.random(1, 2) == 1) and COLOR_LIGHT_BLUE or COLOR_DARK_BLUE
+				strokeInstance.Transparency = math.random(10, 60) / 100
+			end
+
+			task.wait(0.025)
+		end
+
+		for _, sl in ipairs(slicePool) do
+			if sl and sl.Parent then sl:Destroy() end
+		end
+		if cyanGhost and cyanGhost.Parent then cyanGhost:Destroy() end
+		if darkBlueGhost and darkBlueGhost.Parent then darkBlueGhost:Destroy() end
+		if blackGhost and blackGhost.Parent then blackGhost:Destroy() end
+
+		cardFrame.Position = origPos
+		cardFrame.Rotation = 0
+		cardFrame.BackgroundColor3 = origCardBg
+		titleLabel.Text = origTitleText
+		titleLabel.TextColor3 = origTitleColor
+		statusLabel.Text = origStatusText
+		statusLabel.TextColor3 = origStatusColor
+		if strokeInstance then
+			strokeInstance.Color = Color3.fromRGB(255, 255, 255)
+			strokeInstance.Transparency = 0.92
+		end
+	end
+
+	function GlassLifecycle.playWindowGlitch(fxHolder, windowFrame, duration, isOutro)
+		if not windowFrame or not windowFrame.Parent then return end
+		duration = duration or 0.38
+		local origPos = windowFrame.Position
+		local absPos = windowFrame.AbsolutePosition
+		local absSize = windowFrame.AbsoluteSize
+
+		if absSize.X <= 10 or absSize.Y <= 10 then
+			absSize = Vector2.new(577, 436)
+			absPos = Vector2.new(100, 100)
+		end
+
+		-- // STRICT: Window rotation is always 0 to preserve clipping
+		windowFrame.Rotation = 0
+
+		-- // Ensure all inactive tab pages are strictly Visible = false
+		local layersfolder = windowFrame:FindFirstChild("LayersFolder", true)
+		if layersfolder then
+			local layout = layersfolder:FindFirstChildWhichIsA("UIPageLayout")
+			local curPage = layout and layout.CurrentPage
+			if curPage then
+				for _, p in ipairs(layersfolder:GetChildren()) do
+					if p:IsA("GuiObject") and p ~= curPage then
+						p.Visible = false
+					end
 				end
 			end
 		end
-	end
 
-	local wm = instance.frame(parentGui)
-	wm.Name = "Watermark"
-	wm.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-	wm.BackgroundTransparency = 0.2
-	wm.BorderSizePixel = 0
-	wm.Position = watermarkconfig.Position or UDim2.new(0, 16, 0, 16)
-	wm.AutomaticSize = Enum.AutomaticSize.XY
-	wm.Visible = isVisible
-	wm.ZIndex = 1000
-
-	local corner = instance.uicorner(wm)
-	corner.CornerRadius = UDim.new(0, 6)
-
-	local stroke = instance.uistroke(wm)
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Color = Color3.fromRGB(255, 255, 255)
-	stroke.Thickness = 1
-	stroke.Transparency = 0.88
-
-	local pad = instance.uipadding(wm)
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
-	pad.PaddingTop = UDim.new(0, 6)
-	pad.PaddingBottom = UDim.new(0, 6)
-
-	local list = instance.uilistlayout(wm)
-	list.FillDirection = Enum.FillDirection.Horizontal
-	list.VerticalAlignment = Enum.VerticalAlignment.Center
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Padding = UDim.new(0, 8)
-
-	local dot = instance.frame(wm)
-	dot.Name = "Dot"
-	dot.Size = UDim2.new(0, 6, 0, 6)
-	dot.BackgroundColor3 = accentColor
-	dot.BorderSizePixel = 0
-	dot.LayoutOrder = 1
-	instance.uicorner(dot).CornerRadius = UDim.new(1, 0)
-
-	local fullTitle = titleText
-	if versionText and versionText ~= "" then
-		fullTitle = fullTitle .. "  " .. versionText
-	end
-	local titleLabel = instance.textlabel(wm)
-	titleLabel.Name = "TitleLabel"
-	titleLabel.Text = fullTitle
-	titleLabel.Font = font
-	titleLabel.TextSize = 11
-	titleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.BorderSizePixel = 0
-	titleLabel.AutomaticSize = Enum.AutomaticSize.XY
-	titleLabel.LayoutOrder = 2
-
-	local function makeSep(order)
-		local sep = instance.textlabel(wm)
-		sep.Name = "Sep" .. tostring(order)
-		sep.Text = "•"
-		sep.Font = font
-		sep.TextSize = 10
-		sep.TextColor3 = Color3.fromRGB(90, 90, 90)
-		sep.BackgroundTransparency = 1
-		sep.BorderSizePixel = 0
-		sep.AutomaticSize = Enum.AutomaticSize.XY
-		sep.LayoutOrder = order
-		return sep
-	end
-
-	local function makeStat(name, order)
-		local lbl = instance.textlabel(wm)
-		lbl.Name = name
-		lbl.Text = "--"
-		lbl.Font = font
-		lbl.TextSize = 11
-		lbl.TextColor3 = Color3.fromRGB(165, 165, 165)
-		lbl.BackgroundTransparency = 1
-		lbl.BorderSizePixel = 0
-		lbl.AutomaticSize = Enum.AutomaticSize.XY
-		lbl.LayoutOrder = order
-		return lbl
-	end
-
-	local fpsLabel, pingLabel, timeLabel
-	local orderIdx = 3
-
-	if showFps then
-		makeSep(orderIdx)
-		orderIdx = orderIdx + 1
-		fpsLabel = makeStat("FPS", orderIdx)
-		orderIdx = orderIdx + 1
-	end
-
-	if showPing then
-		makeSep(orderIdx)
-		orderIdx = orderIdx + 1
-		pingLabel = makeStat("Ping", orderIdx)
-		orderIdx = orderIdx + 1
-	end
-
-	if showTime then
-		makeSep(orderIdx)
-		orderIdx = orderIdx + 1
-		timeLabel = makeStat("Time", orderIdx)
-		orderIdx = orderIdx + 1
-	end
-
-	local frameCount = 0
-	local timer = 0
-	local updateConn
-	updateConn = sv.run.RenderStepped:Connect(function(dt)
-		frameCount = frameCount + 1
-		timer = timer + dt
-		if timer >= 0.4 then
-			if showFps and fpsLabel and fpsLabel.Parent then
-				local fps = math.floor(frameCount / timer)
-				fpsLabel.Text = tostring(fps) .. " FPS"
-			end
-			frameCount = 0
-			timer = 0
-
-			if showPing and pingLabel and pingLabel.Parent then
-				local ping = 0
-				pcall(function()
-					local stats = game:GetService("Stats")
-					ping = math.floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-				end)
-				pingLabel.Text = tostring(ping) .. " ms"
-			end
-
-			if showTime and timeLabel and timeLabel.Parent then
-				timeLabel.Text = os.date("%H:%M:%S")
+		-- // Scramble ALL TextLabels and TextButtons across the window into binary error numbers (00101010101)
+		local trackedTexts = {}
+		for _, inst in ipairs(windowFrame:GetDescendants()) do
+			if (inst:IsA("TextLabel") or inst:IsA("TextButton")) and inst.Visible and inst.Text and inst.Text ~= "" then
+				table.insert(trackedTexts, {
+					inst = inst,
+					origText = inst.Text,
+					origColor = inst.TextColor3,
+				})
 			end
 		end
-	end)
 
-	local dragInputConn
-	if isDraggable then
-		local dragging = false
-		local dragstart, startpos
-		wm.InputBegan:Connect(function(input)
-			if
-				input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch
-			then
-				dragging = true
-				dragstart = input.Position
-				startpos = wm.Position
+		local BINARY_TEMPLATES = {
+			"00101010101",
+			"010101010101",
+			"0010101010101010",
+			"01010101",
+			"10101010101",
+			"00101010101010101010",
+			"01101001 00101010",
+			"0xFA17::0010101",
+			"00101010101 [ERR]",
+			"101001010101",
+			"0010101010101010",
+			"01010101 // 0xDEAD",
+			"00101010101 // CORRUPT",
+			"10110010 01101111",
+		}
 
-				local conn
-				conn = input.Changed:Connect(function()
-					if input.UserInputState == Enum.UserInputState.End then
-						dragging = false
-						conn:Disconnect()
+		local endTime = os.clock() + duration
+
+		-- // Ghost Frames (Cyan, Dark Blue, Black) tightly behind center window
+		local cyanGhost = Instance.new("Frame")
+		cyanGhost.Name = "GlitchGhost_Cyan"
+		cyanGhost.BackgroundColor3 = COLOR_LIGHT_BLUE
+		cyanGhost.BackgroundTransparency = 0.45
+		cyanGhost.BorderSizePixel = 0
+		cyanGhost.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+		cyanGhost.Position = UDim2.new(0, absPos.X - 8, 0, absPos.Y - 2)
+		cyanGhost.ZIndex = 4998
+		cyanGhost.Parent = fxHolder
+		Instance.new("UICorner", cyanGhost).CornerRadius = UDim.new(0, 8)
+		Debris:AddItem(cyanGhost, duration + 0.1)
+
+		local darkBlueGhost = Instance.new("Frame")
+		darkBlueGhost.Name = "GlitchGhost_DarkBlue"
+		darkBlueGhost.BackgroundColor3 = COLOR_DARK_BLUE
+		darkBlueGhost.BackgroundTransparency = 0.45
+		darkBlueGhost.BorderSizePixel = 0
+		darkBlueGhost.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+		darkBlueGhost.Position = UDim2.new(0, absPos.X + 8, 0, absPos.Y + 2)
+		darkBlueGhost.ZIndex = 4997
+		darkBlueGhost.Parent = fxHolder
+		Instance.new("UICorner", darkBlueGhost).CornerRadius = UDim.new(0, 8)
+		Debris:AddItem(darkBlueGhost, duration + 0.1)
+
+		local blackGhost = Instance.new("Frame")
+		blackGhost.Name = "GlitchGhost_Black"
+		blackGhost.BackgroundColor3 = COLOR_BLACK
+		blackGhost.BackgroundTransparency = 0.3
+		blackGhost.BorderSizePixel = 0
+		blackGhost.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+		blackGhost.Position = UDim2.new(0, absPos.X - 3, 0, absPos.Y + 3)
+		blackGhost.ZIndex = 4996
+		blackGhost.Parent = fxHolder
+		Instance.new("UICorner", blackGhost).CornerRadius = UDim.new(0, 8)
+		Debris:AddItem(blackGhost, duration + 0.1)
+
+		-- // Missing VRAM scanline slice bars (Hitam, Biru Muda, Biru Tua)
+		local slicePool = {}
+		for i = 1, 14 do
+			local sl = Instance.new("Frame")
+			sl.Name = "GlitchSlice"
+			sl.BorderSizePixel = 0
+			sl.ZIndex = 5012
+			sl.Visible = false
+			sl.Parent = fxHolder
+			table.insert(slicePool, sl)
+			Debris:AddItem(sl, duration + 0.1)
+		end
+
+		-- // Dynamic Floating Error Code Overlays (00101010101) flickering on center window
+		local errorLabels = {}
+		for i = 1, 6 do
+			local lbl = Instance.new("TextLabel")
+			lbl.Name = "GlitchErrorCodeLabel"
+			lbl.BackgroundTransparency = 1
+			lbl.BorderSizePixel = 0
+			lbl.Font = Enum.Font.Code
+			lbl.TextSize = 12
+			lbl.TextColor3 = (i % 2 == 0) and COLOR_LIGHT_BLUE or Color3.fromRGB(255, 255, 255)
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.ZIndex = 5015
+			lbl.Visible = false
+			lbl.Parent = fxHolder
+			table.insert(errorLabels, lbl)
+			Debris:AddItem(lbl, duration + 0.1)
+		end
+
+		-- // Localized Specular Glass Fracture Shards cracking along center window edges
+		local glassShards = {}
+		local shardCount = 18
+		for i = 1, shardCount do
+			local edgeDice = i % 4
+			local sx, sy
+			if edgeDice == 0 then
+				sx = absPos.X + math.random(0, absSize.X)
+				sy = absPos.Y + math.random(-8, 12)
+			elseif edgeDice == 1 then
+				sx = absPos.X + absSize.X + math.random(-12, 8)
+				sy = absPos.Y + math.random(0, absSize.Y)
+			elseif edgeDice == 2 then
+				sx = absPos.X + math.random(0, absSize.X)
+				sy = absPos.Y + absSize.Y + math.random(-12, 8)
+			else
+				sx = absPos.X + math.random(-8, 12)
+				sy = absPos.Y + math.random(0, absSize.Y)
+			end
+
+			local w = math.random(14, 30)
+			local h = math.random(4, 10)
+			local rot = math.random(-180, 180)
+			local s = GlassLifecycle.createGlassShard(fxHolder, UDim2.new(0, sx, 0, sy), UDim2.new(0, w, 0, h), rot)
+			s.ZIndex = 5014
+			table.insert(glassShards, s)
+			Debris:AddItem(s, duration + 0.2)
+		end
+
+		-- // Window Stroke / Border Strobing
+		local mainFrame = windowFrame:FindFirstChild("Main", true)
+		local windowStroke = mainFrame and mainFrame:FindFirstChildWhichIsA("UIStroke")
+
+		while os.clock() < endTime do
+			if not windowFrame or not windowFrame.Parent then break end
+
+			-- // Crisp in-place digital jitter (STRICTLY NO ROTATION TO PREVENT UNCLIPPING)
+			local jx = math.random(-6, 6)
+			local jy = math.random(-3, 3)
+			windowFrame.Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + jx, origPos.Y.Scale, origPos.Y.Offset + jy)
+			windowFrame.Rotation = 0
+
+			-- // Jitter Ghost Frames tightly
+			if cyanGhost and cyanGhost.Parent then
+				cyanGhost.Position = UDim2.new(0, absPos.X + jx - math.random(6, 12), 0, absPos.Y + jy + math.random(-2, 2))
+				cyanGhost.BackgroundTransparency = math.random(30, 60) / 100
+			end
+			if darkBlueGhost and darkBlueGhost.Parent then
+				darkBlueGhost.Position = UDim2.new(0, absPos.X + jx + math.random(6, 12), 0, absPos.Y + jy + math.random(-2, 2))
+				darkBlueGhost.BackgroundTransparency = math.random(30, 60) / 100
+			end
+			if blackGhost and blackGhost.Parent then
+				blackGhost.Position = UDim2.new(0, absPos.X + jx - math.random(2, 6), 0, absPos.Y + jy + math.random(-2, 3))
+				blackGhost.BackgroundTransparency = math.random(15, 45) / 100
+			end
+
+			-- // Scramble ALL texts on window into 00101010101 and binary strings!
+			for _, tData in ipairs(trackedTexts) do
+				if tData.inst and tData.inst.Parent then
+					local tmpl = BINARY_TEMPLATES[math.random(1, #BINARY_TEMPLATES)]
+					local origLen = #tData.origText
+					if origLen <= 6 then
+						tData.inst.Text = string.sub(tmpl, 1, math.max(2, origLen))
+					else
+						tData.inst.Text = string.sub(tmpl .. tmpl, 1, origLen)
 					end
-				end)
+					tData.inst.TextColor3 = (math.random(1, 2) == 1) and COLOR_LIGHT_BLUE or Color3.fromRGB(240, 240, 255)
+				end
 			end
-		end)
 
-		dragInputConn = sv.uis.InputChanged:Connect(function(input)
-			if
-				dragging
-				and (
-					input.UserInputType == Enum.UserInputType.MouseMovement
-					or input.UserInputType == Enum.UserInputType.Touch
-				)
-			then
-				local delta = input.Position - dragstart
-				wm.Position = clampPositionToScreen(
-					wm,
-					startpos.X.Scale,
-					startpos.X.Offset + delta.X,
-					startpos.Y.Scale,
-					startpos.Y.Offset + delta.Y
-				)
+			-- // Randomize Scanlines & Missing VRAM Bars across center window
+			for _, sl in ipairs(slicePool) do
+				if sl and sl.Parent then
+					if math.random(1, 10) > 3 then
+						local col = GLITCH_COLORS[math.random(1, #GLITCH_COLORS)]
+						local sH = (math.random(1, 3) == 1) and math.random(10, 22) or math.random(3, 7)
+						local sY = absPos.Y + math.random(0, math.max(1, absSize.Y - sH))
+						local sW = math.random(math.floor(absSize.X * 0.35), math.floor(absSize.X * 1.02))
+						local sX = absPos.X + math.random(-15, 15)
+
+						sl.BackgroundColor3 = col
+						sl.BackgroundTransparency = (col == COLOR_BLACK) and 0.15 or 0.35
+						sl.Size = UDim2.new(0, sW, 0, sH)
+						sl.Position = UDim2.new(0, sX, 0, sY)
+						sl.Visible = true
+					else
+						sl.Visible = false
+					end
+				end
 			end
-		end)
+
+			-- // Randomize Floating Error Code Overlays (00101010101) across center window
+			for _, lbl in ipairs(errorLabels) do
+				if lbl and lbl.Parent then
+					if math.random(1, 10) > 3 then
+						local txt = BINARY_TEMPLATES[math.random(1, #BINARY_TEMPLATES)]
+						local lx = absPos.X + math.random(16, math.max(20, absSize.X - 220))
+						local ly = absPos.Y + math.random(16, math.max(20, absSize.Y - 28))
+
+						lbl.Text = txt
+						lbl.TextColor3 = (math.random(1, 3) == 1) and COLOR_LIGHT_BLUE or ((math.random(1, 2) == 1) and Color3.fromRGB(255, 255, 255) or COLOR_DARK_BLUE)
+						lbl.Position = UDim2.new(0, lx, 0, ly)
+						lbl.Size = UDim2.new(0, 220, 0, 18)
+						lbl.Visible = true
+					else
+						lbl.Visible = false
+					end
+				end
+			end
+
+			-- // Glass fracture shards subtle jitter around window perimeter
+			for _, s in ipairs(glassShards) do
+				if s and s.Parent then
+					local sx = s.Position.X.Offset + math.random(-2, 2)
+					local sy = s.Position.Y.Offset + math.random(-2, 2)
+					s.Position = UDim2.new(0, sx, 0, sy)
+				end
+			end
+
+			-- // Strobe window stroke border between Biru Muda and Biru Tua
+			if windowStroke and windowStroke.Parent then
+				windowStroke.Color = (math.random(1, 2) == 1) and COLOR_LIGHT_BLUE or COLOR_DARK_BLUE
+				windowStroke.Transparency = math.random(20, 70) / 100
+			end
+
+			task.wait(0.025)
+		end
+
+		-- // Clean up slices, labels, ghosts
+		for _, sl in ipairs(slicePool) do
+			if sl and sl.Parent then sl:Destroy() end
+		end
+		for _, lbl in ipairs(errorLabels) do
+			if lbl and lbl.Parent then lbl:Destroy() end
+		end
+		if cyanGhost and cyanGhost.Parent then cyanGhost:Destroy() end
+		if darkBlueGhost and darkBlueGhost.Parent then darkBlueGhost:Destroy() end
+		if blackGhost and blackGhost.Parent then blackGhost:Destroy() end
+
+		-- // Dissolve glass fracture shards cleanly
+		for _, s in ipairs(glassShards) do
+			if s and s.Parent then
+				TweenService:Create(s, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(0, 0, 0, 0),
+				}):Play()
+				Debris:AddItem(s, 0.15)
+			end
+		end
+
+		-- // Restore window frame pristine position and rotation (0)
+		if windowFrame and windowFrame.Parent then
+			windowFrame.Position = origPos
+			windowFrame.Rotation = 0
+		end
+
+		-- // Restore window stroke
+		if windowStroke and windowStroke.Parent then
+			windowStroke.Color = Color3.fromRGB(255, 255, 255)
+			windowStroke.Transparency = 0.92
+		end
+
+		-- // Always decode all texts back to original pristine state
+		for _, tData in ipairs(trackedTexts) do
+			if tData.inst and tData.inst.Parent then
+				tData.inst.Text = tData.origText
+				tData.inst.TextColor3 = tData.origColor
+			end
+		end
 	end
 
-	local wmApi = {}
-	function wmApi:SetVisible(bool)
-		wm.Visible = bool
-	end
-	function wmApi:SetTitle(newTitle)
-		titleText = newTitle
-		titleLabel.Text = titleText .. (versionText and ("  " .. versionText) or "")
-	end
-	function wmApi:SetText(customText)
-		titleLabel.Text = customText
-	end
-	function wmApi:Destroy()
-		if updateConn then
-			updateConn:Disconnect()
-			updateConn = nil
+	function GlassLifecycle.buildCard(fxHolder, guiconfig, formatAsset)
+		local shadow = Instance.new("ImageLabel")
+		shadow.Name = "Shadow"
+		shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+		shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+		shadow.Size = UDim2.new(0, 370, 0, 126)
+		shadow.BackgroundTransparency = 1
+		shadow.Image = "rbxassetid://6015897843"
+		shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+		shadow.ImageTransparency = 1
+		shadow.ScaleType = Enum.ScaleType.Slice
+		shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+		shadow.ZIndex = 5001
+		shadow.Visible = false
+		shadow.Parent = fxHolder
+
+		local card = Instance.new("Frame")
+		card.Name = "LoadingCard"
+		card.AnchorPoint = Vector2.new(0.5, 0.5)
+		card.Position = UDim2.new(0.5, 0, 0.5, 0)
+		card.Size = UDim2.new(0, 340, 0, 92)
+		card.BackgroundColor3 = Color3.fromRGB(15, 15, 17)
+		card.BackgroundTransparency = 1
+		card.BorderSizePixel = 0
+		card.ClipsDescendants = true
+		card.ZIndex = 5002
+		card.Visible = false
+		card.Parent = fxHolder
+
+		local cardCorner = Instance.new("UICorner")
+		cardCorner.CornerRadius = UDim.new(0, 8)
+		cardCorner.Parent = card
+
+		local cardStroke = Instance.new("UIStroke")
+		cardStroke.Color = Color3.fromRGB(255, 255, 255)
+		cardStroke.Transparency = 1
+		cardStroke.Thickness = 1
+		cardStroke.Parent = card
+
+		local artworkContainer = Instance.new("Frame")
+		artworkContainer.Name = "ArtworkContainer"
+		artworkContainer.AnchorPoint = Vector2.new(1, 0.5)
+		artworkContainer.Position = UDim2.new(1, 0, 0.5, 0)
+		artworkContainer.Size = UDim2.new(0, 120, 1, 0)
+		artworkContainer.BackgroundTransparency = 1
+		artworkContainer.ClipsDescendants = true
+		artworkContainer.ZIndex = 5003
+		artworkContainer.Parent = card
+
+		local artAsset = "137427451614081"
+		if type(guiconfig.LoadingScreen) == "table" and guiconfig.LoadingScreen.Image then
+			artAsset = tostring(guiconfig.LoadingScreen.Image)
+		elseif guiconfig.LoadingImage then
+			artAsset = tostring(guiconfig.LoadingImage)
 		end
-		if dragInputConn then
-			dragInputConn:Disconnect()
-			dragInputConn = nil
+
+		local bgArtwork = Instance.new("ImageLabel")
+		bgArtwork.Name = "RightArtwork"
+		bgArtwork.AnchorPoint = Vector2.new(1, 0.5)
+		bgArtwork.Position = UDim2.new(1, 6, 0.5, 0)
+		bgArtwork.Size = UDim2.new(0, 115, 0, 115)
+		bgArtwork.BackgroundTransparency = 1
+		bgArtwork.Image = formatAsset(artAsset)
+		bgArtwork.ImageTransparency = 0.5
+		bgArtwork.ScaleType = Enum.ScaleType.Crop
+		bgArtwork.ZIndex = 5003
+		bgArtwork.Parent = artworkContainer
+
+		local bgGradient = Instance.new("UIGradient")
+		bgGradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.4, 0.75),
+			NumberSequenceKeypoint.new(0.8, 0.2),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		bgGradient.Rotation = 0
+		bgGradient.Parent = bgArtwork
+
+		local content = Instance.new("Frame")
+		content.Name = "Content"
+		content.Size = UDim2.new(1, 0, 1, 0)
+		content.BackgroundTransparency = 1
+		content.ZIndex = 5004
+		content.Parent = card
+
+		local padding = Instance.new("UIPadding")
+		padding.PaddingLeft = UDim.new(0, 16)
+		padding.PaddingRight = UDim.new(0, 16)
+		padding.PaddingTop = UDim.new(0, 15)
+		padding.PaddingBottom = UDim.new(0, 15)
+		padding.Parent = content
+
+		local topRow = Instance.new("Frame")
+		topRow.Name = "TopRow"
+		topRow.Size = UDim2.new(1, 0, 0, 20)
+		topRow.BackgroundTransparency = 1
+		topRow.ZIndex = 5005
+		topRow.Parent = content
+
+		local title = Instance.new("TextLabel")
+		title.Name = "Title"
+		title.Size = UDim2.new(1, 0, 1, 0)
+		title.Position = UDim2.new(0, 0, 0, 0)
+		title.BackgroundTransparency = 1
+		title.Font = Enum.Font.GothamBold
+		title.Text = (type(guiconfig.LoadingScreen) == "table" and guiconfig.LoadingScreen.Title) or guiconfig.Title or "User Interface Library Chloe X"
+		title.TextColor3 = Color3.fromRGB(255, 255, 255)
+		title.TextSize = 13
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.ZIndex = 5006
+		title.Parent = topRow
+
+		local track = Instance.new("Frame")
+		track.Name = "ProgressTrack"
+		track.Size = UDim2.new(1, 0, 0, 6)
+		track.Position = UDim2.new(0, 0, 0, 32)
+		track.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+		track.BorderSizePixel = 0
+		track.ClipsDescendants = true
+		track.ZIndex = 5005
+		track.Parent = content
+
+		local trackCorner = Instance.new("UICorner")
+		trackCorner.CornerRadius = UDim.new(1, 0)
+		trackCorner.Parent = track
+
+		local fill = Instance.new("Frame")
+		fill.Name = "Fill"
+		fill.Size = UDim2.new(0, 0, 1, 0)
+		fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		fill.BorderSizePixel = 0
+		fill.ZIndex = 5006
+		fill.Parent = track
+
+		local fillCorner = Instance.new("UICorner")
+		fillCorner.CornerRadius = UDim.new(1, 0)
+		fillCorner.Parent = fill
+
+		local gradient = Instance.new("UIGradient")
+		gradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, COLOR_LIGHT_BLUE),
+			ColorSequenceKeypoint.new(1, COLOR_DARK_BLUE),
+		})
+		gradient.Rotation = 0
+		gradient.Parent = fill
+
+		local statusText = Instance.new("TextLabel")
+		statusText.Name = "StatusText"
+		statusText.Size = UDim2.new(1, -90, 0, 16)
+		statusText.Position = UDim2.new(0, 0, 0, 46)
+		statusText.BackgroundTransparency = 1
+		statusText.Font = Enum.Font.GothamMedium
+		statusText.Text = "Initializing Library..."
+		statusText.TextColor3 = Color3.fromRGB(180, 180, 190)
+		statusText.TextSize = 11
+		statusText.TextXAlignment = Enum.TextXAlignment.Left
+		statusText.ZIndex = 5006
+		statusText.Parent = content
+
+		return {
+			card = card,
+			shadow = shadow,
+			fill = fill,
+			title = title,
+			statusText = statusText,
+			cardStroke = cardStroke,
+		}
+	end
+
+	function GlassLifecycle.runEntryAnimation(fxHolder, ui)
+		local card = ui.card
+		local shadow = ui.shadow
+		local cardStroke = ui.cardStroke
+
+		card.Visible = false
+		shadow.Visible = false
+
+		local shardCount = 40
+		local activeShards = {}
+
+		for i = 1, shardCount do
+			local angle = (i / shardCount) * (math.pi * 2) + (math.random(-15, 15) / 100)
+			local startDist = math.random(190, 340)
+			local targetDist = math.random(8, 35)
+
+			local w = (i % 3 == 0) and math.random(22, 38) or ((i % 3 == 1) and math.random(10, 16) or math.random(7, 12))
+			local h = (i % 3 == 0) and math.random(3, 6) or ((i % 3 == 1) and math.random(6, 12) or math.random(7, 12))
+			local rot = math.random(-180, 180)
+
+			local shard = GlassLifecycle.createGlassShard(
+				fxHolder,
+				UDim2.new(0.5, math.cos(angle) * startDist, 0.5, math.sin(angle) * startDist),
+				UDim2.new(0, w, 0, h),
+				rot
+			)
+			table.insert(activeShards, shard)
+
+			local duration = math.random(34, 44) / 100
+			local tw = TweenService:Create(shard, TweenInfo.new(duration, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+				Position = UDim2.new(0.5, math.cos(angle) * targetDist, 0.5, math.sin(angle) * targetDist),
+				Rotation = rot + math.random(-140, 140),
+				Size = UDim2.new(0, 2, 0, 2),
+				BackgroundTransparency = 0.9,
+			})
+			tw:Play()
 		end
-		if createdGui and parentGui then
-			parentGui:Destroy()
-		else
-			wm:Destroy()
+
+		task.wait(0.36)
+
+		for _, s in ipairs(activeShards) do
+			if s and s.Parent then s:Destroy() end
+		end
+
+		card.Visible = true
+		shadow.Visible = true
+		card.BackgroundTransparency = 0
+		shadow.ImageTransparency = 0.45
+		cardStroke.Transparency = 0.92
+
+		GlassLifecycle.playFatalGlitch(fxHolder, ui, 0.32)
+	end
+
+	function GlassLifecycle.runOutroAnimation(fxHolder, ui)
+		local cardFrame = ui.card
+		local shadowFrame = ui.shadow
+
+		GlassLifecycle.playFatalGlitch(fxHolder, ui, 0.32)
+
+		local absPos = cardFrame.AbsolutePosition
+		local absSize = cardFrame.AbsoluteSize
+
+		cardFrame.Visible = false
+		shadowFrame.Visible = false
+
+		local shardCount = 50
+		local activeShards = {}
+
+		for i = 1, shardCount do
+			local origX = absPos.X + math.random(0, absSize.X)
+			local origY = absPos.Y + math.random(0, absSize.Y)
+
+			local w = (i % 3 == 0) and math.random(18, 34) or ((i % 3 == 1) and math.random(10, 18) or math.random(6, 12))
+			local h = (i % 3 == 0) and math.random(3, 7) or ((i % 3 == 1) and math.random(6, 12) or math.random(6, 12))
+			local rot = math.random(-180, 180)
+
+			local shard = GlassLifecycle.createGlassShard(fxHolder, UDim2.new(0, origX, 0, origY), UDim2.new(0, w, 0, h), rot)
+			table.insert(activeShards, shard)
+
+			local angle = math.random() * (math.pi * 2)
+			local blastDist = math.random(140, 360)
+			local targetX = origX + math.cos(angle) * blastDist
+			local targetY = origY + math.sin(angle) * blastDist
+			local targetRot = rot + math.random(-360, 360)
+
+			local duration = math.random(36, 65) / 100
+			local tw = TweenService:Create(shard, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, targetX, 0, targetY),
+				Rotation = targetRot,
+				Size = UDim2.new(0, 0, 0, 0),
+				BackgroundTransparency = 1,
+			})
+			tw:Play()
+		end
+
+		task.wait(0.68)
+
+		for _, s in ipairs(activeShards) do
+			if s and s.Parent then s:Destroy() end
 		end
 	end
 
-	return wmApi
+	function GlassLifecycle.runWindowInward(fxHolder, windowFrame, chloeex)
+		windowFrame.Visible = false
+		local absPos = windowFrame.AbsolutePosition
+		local absSize = windowFrame.AbsoluteSize
+		local screenW = (chloeex and chloeex.AbsoluteSize.X > 0) and chloeex.AbsoluteSize.X or 1280
+		local screenH = (chloeex and chloeex.AbsoluteSize.Y > 0) and chloeex.AbsoluteSize.Y or 720
+		local centerX = (absSize.X > 10) and (absPos.X + absSize.X / 2) or (screenW / 2)
+		local centerY = (absSize.Y > 10) and (absPos.Y + absSize.Y / 2) or (screenH / 2)
+
+		-- // Focus glass shards tightly around center window
+		local shardCount = 36
+		local activeShards = {}
+
+		for i = 1, shardCount do
+			local angle = (i / shardCount) * (math.pi * 2) + (math.random(-15, 15) / 100)
+			local startDist = math.random(90, 200)
+			local targetDist = math.random(10, 35)
+
+			local w = (i % 3 == 0) and math.random(20, 36) or ((i % 3 == 1) and math.random(10, 16) or math.random(6, 12))
+			local h = (i % 3 == 0) and math.random(4, 7) or ((i % 3 == 1) and math.random(5, 10) or math.random(5, 10))
+			local rot = math.random(-180, 180)
+
+			local shard = GlassLifecycle.createGlassShard(
+				fxHolder,
+				UDim2.new(0, centerX + math.cos(angle) * startDist, 0, centerY + math.sin(angle) * startDist),
+				UDim2.new(0, w, 0, h),
+				rot
+			)
+			table.insert(activeShards, shard)
+
+			local duration = math.random(30, 40) / 100
+			local tw = TweenService:Create(shard, TweenInfo.new(duration, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+				Position = UDim2.new(0, centerX + math.cos(angle) * targetDist, 0, centerY + math.sin(angle) * targetDist),
+				Rotation = rot + math.random(-120, 120),
+				Size = UDim2.new(0, 2, 0, 2),
+				BackgroundTransparency = 0.9,
+			})
+			tw:Play()
+		end
+
+		task.wait(0.32)
+
+		for _, s in ipairs(activeShards) do
+			if s and s.Parent then s:Destroy() end
+		end
+
+		windowFrame.Visible = true
+		GlassLifecycle.playWindowGlitch(fxHolder, windowFrame, 0.38)
+	end
+
+	function GlassLifecycle.runGlassOutward(fxHolder, windowFrame, onComplete)
+		GlassLifecycle.playWindowGlitch(fxHolder, windowFrame, 0.35, true)
+
+		local absPos = windowFrame.AbsolutePosition
+		local absSize = windowFrame.AbsoluteSize
+
+		windowFrame.Visible = false
+
+		local shardCount = 60
+		local activeShards = {}
+
+		for i = 1, shardCount do
+			local origX = absPos.X + math.random(0, absSize.X)
+			local origY = absPos.Y + math.random(0, absSize.Y)
+
+			local w = (i % 3 == 0) and math.random(20, 38) or ((i % 3 == 1) and math.random(12, 20) or math.random(8, 14))
+			local h = (i % 3 == 0) and math.random(4, 8) or ((i % 3 == 1) and math.random(6, 14) or math.random(6, 12))
+			local rot = math.random(-180, 180)
+
+			local shard = GlassLifecycle.createGlassShard(fxHolder, UDim2.new(0, origX, 0, origY), UDim2.new(0, w, 0, h), rot)
+			table.insert(activeShards, shard)
+
+			local angle = math.random() * (math.pi * 2)
+			local blastDist = math.random(180, 480)
+			local targetX = origX + math.cos(angle) * blastDist
+			local targetY = origY + math.sin(angle) * blastDist
+			local targetRot = rot + math.random(-360, 360)
+
+			local duration = math.random(38, 70) / 100
+			local tw = TweenService:Create(shard, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, targetX, 0, targetY),
+				Rotation = targetRot,
+				Size = UDim2.new(0, 0, 0, 0),
+				BackgroundTransparency = 1,
+			})
+			tw:Play()
+		end
+
+		task.wait(0.72)
+
+		for _, s in ipairs(activeShards) do
+			if s and s.Parent then s:Destroy() end
+		end
+
+		if onComplete then
+			onComplete()
+		end
+	end
 end
 
 function Chloex:Window(guiconfig)
-	-- // Destroy any previous window before creating a new one
-	if getgenv().ChloeX_Instance then
-		pcall(function()
-			getgenv().ChloeX_Instance:DestroyGui()
-		end)
-		getgenv().ChloeX_Instance = nil
+	-- // Native Single-Execution Guard: Max 1x instance allowed, subsequent executions are invalid
+	local isAlive = false
+	local CoreGui = game:GetService("CoreGui")
+	local hui = (gethui and gethui()) or CoreGui
+	local robloxGui = CoreGui:FindFirstChild("RobloxGui")
+	local playerGui = sv.plrs.LocalPlayer and sv.plrs.LocalPlayer:FindFirstChild("PlayerGui")
+
+	if getgenv and getgenv().ChloeX_ScreenGui and getgenv().ChloeX_ScreenGui.Parent then
+		isAlive = true
 	end
+
+	if not isAlive then
+		local checkParents = { hui, CoreGui, robloxGui, playerGui }
+		for _, p in ipairs(checkParents) do
+			if p then
+				local found = p:FindFirstChild("Chloeex")
+				if found and found:IsA("ScreenGui") and found:FindFirstChild("DropShadowHolder") then
+					isAlive = true
+					break
+				end
+			end
+		end
+	end
+
+	if isAlive then
+		local now = os.clock()
+		local lastNotify = (getgenv and getgenv()._ChloeX_LastInvalidNotify) or 0
+		if (now - lastNotify) > 2.5 then
+			if getgenv then
+				getgenv()._ChloeX_LastInvalidNotify = now
+			end
+			pcall(function()
+				Chloex.Notify(
+					"Execution Invalid: Chloe X is already active (Max 1x)!",
+					3,
+					Color3.fromRGB(255, 65, 65),
+					"Chloe X Guard",
+					"Invalid Execution"
+				)
+			end)
+			warn("[Chloe X] Execution Invalid: Max 1x instance allowed. Script is already active.")
+		end
+
+		-- // Immediately stop caller thread cleanly so subsequent elements and notifications NEVER run
+		coroutine.yield()
+		return nil
+	end
+
+	if getgenv then
+		getgenv().ChloeX_Running = true
+	end
+
 	guiconfig = guiconfig or {}
 	guiconfig.Title = guiconfig.Title or "Chloe X"
 	guiconfig.Footer = guiconfig.Footer or "Chloee :3"
@@ -1617,7 +2363,9 @@ function Chloex:Window(guiconfig)
 		purgeLingeringGuis(sv.plrs.LocalPlayer:FindFirstChild("PlayerGui"))
 	end
 	getgenv().ChloeX_Instance = guifunc
+	getgenv().ChloeX_Running = true
 	local chloeex = Instance.new("ScreenGui")
+	getgenv().ChloeX_ScreenGui = chloeex
 	chloeex.Name = "Chloeex"
 	chloeex.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	chloeex.ResetOnSpawn = false
@@ -1657,13 +2405,110 @@ function Chloex:Window(guiconfig)
 	local queueMiniRefresh = nil
 	local miniSearchInput = nil
 
-	local dropshadowholder = instance.frame(chloeex)
+		-- // Native Window Lifecycle Controller
+	local lifecycle = {
+		enableLoading = (guiconfig.LoadingScreen == true or type(guiconfig.LoadingScreen) == "table"),
+		enableGlassIntro = (guiconfig.GlassIntro ~= false) and ((guiconfig.LoadingScreen == true or type(guiconfig.LoadingScreen) == "table") or guiconfig.GlassIntro == true),
+		enableGlassOutro = (guiconfig.GlassOutro ~= false),
+		isLoadingActive = false,
+		visConn = nil,
+		fxHolder = Instance.new("Frame"),
+	}
+	lifecycle.isLoadingActive = lifecycle.enableLoading
+	lifecycle.fxHolder.Name = "FxHolder"
+	lifecycle.fxHolder.Size = UDim2.new(1, 0, 1, 0)
+	lifecycle.fxHolder.BackgroundTransparency = 1
+	lifecycle.fxHolder.ZIndex = 5000
+	lifecycle.fxHolder.Parent = chloeex
+
+	local dropshadowholder
+
+	local startWindowLifecycle = function()
+		if lifecycle.enableLoading then
+			if dropshadowholder then
+				dropshadowholder.Visible = false
+				if not lifecycle.visConn then
+					lifecycle.visConn = dropshadowholder:GetPropertyChangedSignal("Visible"):Connect(function()
+						if lifecycle.isLoadingActive and dropshadowholder.Visible == true then
+							dropshadowholder.Visible = false
+						end
+					end)
+				end
+			end
+			task.spawn(function()
+				local ui = GlassLifecycle.buildCard(lifecycle.fxHolder, guiconfig, formatAsset)
+
+				GlassLifecycle.runEntryAnimation(lifecycle.fxHolder, ui)
+				task.wait(0.12)
+
+				local stages = {
+					{ text = "Initializing Library...", progress = 0.15, duration = 0.38 },
+					{ text = "Loading Engine...", progress = 0.35, duration = 0.38 },
+					{ text = "Loading Core UI...", progress = 0.55, duration = 0.42 },
+					{ text = "Loading Asset modules...", progress = 0.75, duration = 0.42 },
+					{ text = "Loading Configuration...", progress = 0.95, duration = 0.38 },
+					{ text = "Library is ready! Launching...", progress = 1.0, duration = 0.35 },
+				}
+
+				for _, stage in ipairs(stages) do
+					if not ui.card or not ui.card.Parent then break end
+					ui.statusText.Text = stage.text
+					sv.ts:Create(ui.fill, TweenInfo.new(stage.duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						Size = UDim2.new(stage.progress, 0, 1, 0)
+					}):Play()
+					task.wait(stage.duration + 0.16)
+				end
+
+				task.wait(0.45)
+
+				GlassLifecycle.runOutroAnimation(lifecycle.fxHolder, ui)
+
+				if ui.card and ui.card.Parent then ui.card:Destroy() end
+				if ui.shadow and ui.shadow.Parent then ui.shadow:Destroy() end
+
+				task.wait(0.1)
+
+				lifecycle.isLoadingActive = false
+				if lifecycle.visConn then
+					lifecycle.visConn:Disconnect()
+					lifecycle.visConn = nil
+				end
+
+				if dropshadowholder and dropshadowholder.Parent then
+					GlassLifecycle.runWindowInward(lifecycle.fxHolder, dropshadowholder, chloeex)
+				end
+			end)
+		elseif lifecycle.enableGlassIntro then
+			if dropshadowholder then dropshadowholder.Visible = false end
+			task.spawn(function()
+				task.wait(0.05)
+				if dropshadowholder and dropshadowholder.Parent then
+					GlassLifecycle.runWindowInward(lifecycle.fxHolder, dropshadowholder, chloeex)
+				end
+			end)
+		else
+			dropshadowholder.Visible = true
+		end
+	end
+
+	dropshadowholder = instance.frame(chloeex)
 	dropshadowholder.Name = "DropShadowHolder"
 	dropshadowholder.BackgroundTransparency = 1
 	dropshadowholder.BorderSizePixel = 0
 	dropshadowholder.AnchorPoint = Vector2.new(0.5, 0.5)
 	dropshadowholder.Position = UDim2.new(0.5, 0, 0.5, isMobile and 30 or 0)
 	dropshadowholder.ZIndex = 0
+	dropshadowholder.Visible = not (lifecycle.enableLoading or lifecycle.enableGlassIntro)
+	if lifecycle.enableLoading then
+		dropshadowholder.Visible = false
+		if not lifecycle.visConn then
+			lifecycle.visConn = dropshadowholder:GetPropertyChangedSignal("Visible"):Connect(function()
+				if lifecycle.isLoadingActive and dropshadowholder.Visible == true then
+					dropshadowholder.Visible = false
+				end
+			end)
+		end
+	end
 	local defaultW = (guiconfig.Type == 2) and 630 or ((guiconfig.Type == 3) and 620 or 577)
 	local defaultH = 436
 	if guiconfig.Size then
@@ -1814,7 +2659,27 @@ function Chloex:Window(guiconfig)
 	bannerButton.ZIndex = 25
 	bannerButton.AutoButtonColor = false
 
-	bannerButton.MouseEnter:Connect(function()
+	-- // Dedicated Swap Button targeting strictly the swapIcon hit area (not the title card)
+	local swapButton = instance.textbutton(sidebarBanner)
+	swapButton.Name = "SwapButton"
+	swapButton.Text = ""
+	swapButton.BackgroundTransparency = 1
+	swapButton.AutoButtonColor = false
+	if guiconfig.Type == 3 then
+		swapButton.AnchorPoint = Vector2.new(0.5, 0.5)
+		swapButton.Position = UDim2.new(0.5, 0, 0.5, 0)
+		swapButton.Size = UDim2.new(1, 0, 1, 0)
+		swapButton.ZIndex = 30
+	else
+		-- // Focused strictly on the swapIcon area (24x24 px at bottom right corner)
+		swapButton.AnchorPoint = Vector2.new(1, 1)
+		swapButton.Position = UDim2.new(1, 2, 1, 7)
+		swapButton.Size = UDim2.new(0, 24, 0, 24)
+		swapButton.ZIndex = 30
+	end
+
+	-- // Hover feedback strictly on the swap icon
+	swapButton.MouseEnter:Connect(function()
 		if guiconfig.Type == 3 then
 			if sidebarTooltip then
 				local tText = sidebarTooltip:FindFirstChild("TooltipText")
@@ -1826,28 +2691,33 @@ function Chloex:Window(guiconfig)
 			end
 		else
 			if currentViewMode == "Main" then
-				sv.ts:Create(swapIcon, TweenInfo.new(0.18), { ImageTransparency = 0.1, ImageColor3 = Color3.fromRGB(240, 240, 240) }):Play()
+				swapIcon.ImageTransparency = 0.1
+				swapIcon.ImageColor3 = Color3.fromRGB(240, 240, 240)
 			else
-				sv.ts:Create(swapIcon, TweenInfo.new(0.18), { ImageTransparency = 0.0, ImageColor3 = guiconfig.Color }):Play()
+				swapIcon.ImageTransparency = 0.0
+				swapIcon.ImageColor3 = Color3.fromRGB(45, 170, 255)
 			end
 		end
 	end)
 
-	bannerButton.MouseLeave:Connect(function()
+	swapButton.MouseLeave:Connect(function()
 		if guiconfig.Type == 3 then
 			if sidebarTooltip then
 				sidebarTooltip.Visible = false
 			end
 		else
 			if currentViewMode == "Main" then
-				sv.ts:Create(swapIcon, TweenInfo.new(0.18), { ImageTransparency = 0.55, ImageColor3 = Color3.fromRGB(160, 160, 160) }):Play()
+				swapIcon.ImageTransparency = 0.55
+				swapIcon.ImageColor3 = Color3.fromRGB(160, 160, 160)
 			else
-				sv.ts:Create(swapIcon, TweenInfo.new(0.18), { ImageTransparency = 0.0, ImageColor3 = guiconfig.Color }):Play()
+				swapIcon.ImageTransparency = 0.0
+				swapIcon.ImageColor3 = Color3.fromRGB(45, 170, 255)
 			end
 		end
 	end)
 
-	bannerButton.Activated:Connect(function()
+	-- // 1x Instant Click Trigger (Strictly on the Swap Icon, No Animation)
+	swapButton.Activated:Connect(function()
 		if sidebarTooltip then
 			sidebarTooltip.Visible = false
 		end
@@ -2118,6 +2988,7 @@ function Chloex:Window(guiconfig)
 	layers.BackgroundTransparency = 0.999
 	layers.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	layers.BorderSizePixel = 0
+	layers.ClipsDescendants = true
 	layers.Position = (guiconfig.Type == 3) and UDim2.new(0, tabWidth + 6, 0, 10) or UDim2.new(0, tabWidth + 21, 0, 12)
 	layers.Size = (guiconfig.Type == 3) and UDim2.new(1, -(tabWidth + 12), 1, -26) or UDim2.new(1, -(tabWidth + 28), 1, -24)
 
@@ -2140,13 +3011,60 @@ function Chloex:Window(guiconfig)
 	layersfolder.BorderSizePixel = 0
 	layersfolder.Size = UDim2.new(1, 0, 1, 0)
 
-	local layerspagelayout = instance.uipagelayout(layersfolder)
-	layerspagelayout.Name = "LayersPageLayout"
-	layerspagelayout.SortOrder = Enum.SortOrder.LayoutOrder
-	layerspagelayout.Animated = false
-	layerspagelayout.TweenTime = 0
-	layerspagelayout.EasingDirection = Enum.EasingDirection.Out
-	layerspagelayout.EasingStyle = Enum.EasingStyle.Quad
+	-- // Pure Lua Tab Switcher Controller (Bypasses Roblox UIPageLayout to prevent Escape/CoreGui navigation bugs)
+	local activeCurrentPage = nil
+	local pageEnterCallbacks = {}
+	local layerspagelayout = {
+		CurrentPage = nil,
+		TweenTime = 0,
+		PageEnter = {
+			Connect = function(self, fn)
+				table.insert(pageEnterCallbacks, fn)
+				return {
+					Disconnect = function()
+						for i, cb in ipairs(pageEnterCallbacks) do
+							if cb == fn then
+								table.remove(pageEnterCallbacks, i)
+								break
+							end
+						end
+					end
+				}
+			end
+		},
+		JumpTo = function(self, targetPage)
+			if not targetPage or not layersfolder then return end
+			self.CurrentPage = targetPage
+			activeCurrentPage = targetPage
+			for _, p in ipairs(layersfolder:GetChildren()) do
+				if p:IsA("GuiObject") then
+					local isTarget = (p == targetPage)
+					p.Visible = isTarget
+					if isTarget then
+						p.Position = UDim2.new(0, 0, 0, 0)
+					end
+				end
+			end
+			for _, fn in ipairs(pageEnterCallbacks) do
+				task.spawn(fn, targetPage)
+			end
+		end
+	}
+
+	local function jumpToPage(targetPage)
+		if not targetPage or not layersfolder then return end
+		layerspagelayout:JumpTo(targetPage)
+	end
+
+	pcall(function()
+		local GuiService = game:GetService("GuiService")
+		GuiService.MenuClosed:Connect(function()
+			if activeCurrentPage and activeCurrentPage.Parent == layersfolder then
+				activeCurrentPage.Visible = true
+				activeCurrentPage.Position = UDim2.new(0, 0, 0, 0)
+			end
+		end)
+	end)
 
 	local scrolltab = instance.scrollingframe(layerstab)
 	scrolltab.Name = "ScrollTab"
@@ -2665,8 +3583,13 @@ function Chloex:Window(guiconfig)
 	local toggleScreenGui = nil
 	local toggleInputConn = nil
 
+	local isDestroyingGui = false
 	function guifunc:DestroyGui()
-		disconnectAll()
+		if isDestroyingGui then return end
+		isDestroyingGui = true
+
+		local function finalizeDestroy()
+			disconnectAll()
 		for key, timer in pairs(resizeDebounceTable) do
 			if timer then
 				task.cancel(timer)
@@ -2743,7 +3666,20 @@ function Chloex:Window(guiconfig)
 
 		getgenv().ChloeX_Instance = nil
 		getgenv().ChloeX_Running = nil
+		getgenv().ChloeX_ScreenGui = nil
+		getgenv().ChloeX_Tabs = nil
 		getgenv().ChloeX_ReopenPrompt = nil
+		end
+
+		if lifecycle.enableGlassOutro and dropshadowholder and dropshadowholder.Parent and dropshadowholder.Visible then
+			task.spawn(function()
+				GlassLifecycle.runGlassOutward(lifecycle.fxHolder, dropshadowholder, function()
+					finalizeDestroy()
+				end)
+			end)
+		else
+			finalizeDestroy()
+		end
 	end
 
 	local function showClosePrompt()
@@ -3437,15 +4373,46 @@ function Chloex:Window(guiconfig)
 		updateMiniPosition(false)
 	end)
 
+	-- // Centralized Window Toggle with Fatal Corrupted Glitch Animation
+	local isTogglingWindow = false
+	local function toggleMainWindow(overrideState)
+		if not dropshadowholder or not dropshadowholder.Parent then return end
+		if isTogglingWindow then return end
+
+		local targetVisible = (overrideState ~= nil) and overrideState or (not dropshadowholder.Visible)
+		if targetVisible == dropshadowholder.Visible then return end
+
+		if guiconfig.GlassIntro ~= false and lifecycle and lifecycle.fxHolder then
+			isTogglingWindow = true
+			if targetVisible then
+				dropshadowholder.Visible = true
+				task.spawn(function()
+					pcall(function()
+						GlassLifecycle.playWindowGlitch(lifecycle.fxHolder, dropshadowholder, 0.28, false)
+					end)
+					isTogglingWindow = false
+				end)
+			else
+				task.spawn(function()
+					pcall(function()
+						GlassLifecycle.playWindowGlitch(lifecycle.fxHolder, dropshadowholder, 0.25, true)
+					end)
+					dropshadowholder.Visible = false
+					isTogglingWindow = false
+				end)
+			end
+		else
+			dropshadowholder.Visible = targetVisible
+		end
+	end
+
 	-- // Global Keybind Listener (Main UI: F3, Mini UI: F4)
 	trackConnection(sv.uis.InputBegan:Connect(function(input, gpe)
 		if gpe or isKeybindListening then
 			return
 		end
 		if input.KeyCode == mainToggleKey then
-			if dropshadowholder then
-				dropshadowholder.Visible = not dropshadowholder.Visible
-			end
+			toggleMainWindow()
 		elseif input.KeyCode == miniToggleKey then
 			if isMiniUIEnabled and miniHolder then
 				miniHolder.Visible = not miniHolder.Visible
@@ -3453,7 +4420,7 @@ function Chloex:Window(guiconfig)
 		end
 	end), "window.globalKeybinds")
 
-	-- // ToggleUI Button (Classic Square Icon)
+	-- // ToggleUI Button (Classic Square Icon - hanya muncul ketika tidak memakai Mini UI, persis seperti PC)
 	function guifunc:ToggleUI(overrideState)
 		if toggleScreenGui and toggleScreenGui.Parent then
 			if overrideState ~= nil then
@@ -3646,10 +4613,8 @@ function Chloex:Window(guiconfig)
 		end)
 
 		btnMain.MouseButton1Click:Connect(function()
-			if dropshadowholder then
-				dropshadowholder.Visible = not dropshadowholder.Visible
-				updateMainBtnVisual()
-			end
+			toggleMainWindow()
+			updateMainBtnVisual()
 		end)
 
 		btnMini.MouseButton1Click:Connect(function()
@@ -4075,10 +5040,8 @@ function Chloex:Window(guiconfig)
 		end
 
 		btnFlyMain.MouseButton1Click:Connect(function()
-			if dropshadowholder then
-				dropshadowholder.Visible = not dropshadowholder.Visible
-				updateAllBtnVisuals()
-			end
+			toggleMainWindow()
+			updateAllBtnVisuals()
 		end)
 
 		btnFlyMini.MouseButton1Click:Connect(function()
@@ -4093,9 +5056,7 @@ function Chloex:Window(guiconfig)
 				if isMiniUIEnabled then
 					setBarExpansion(not isBarExpanded)
 				else
-					if dropshadowholder then
-						dropshadowholder.Visible = not dropshadowholder.Visible
-					end
+					toggleMainWindow()
 				end
 			end
 		end)
@@ -4153,6 +5114,7 @@ function Chloex:Window(guiconfig)
 	end
 
 	local tabs = {}
+	local registeredTabs = {}
 	local searchItems = {}
 	local counttab = 0
 	local tabSections = {}
@@ -4532,6 +5494,9 @@ function Chloex:Window(guiconfig)
 	droppagelayout.SortOrder = Enum.SortOrder.LayoutOrder
 	droppagelayout.FillDirection = Enum.FillDirection.Vertical
 	droppagelayout.Archivable = false
+	droppagelayout.ScrollWheelInputEnabled = false
+	droppagelayout.TouchInputEnabled = false
+	droppagelayout.GamepadInputEnabled = false
 
 	local searchlayer = instance.frame(layers)
 	searchlayer.Name = "SearchLayer"
@@ -4637,16 +5602,14 @@ function Chloex:Window(guiconfig)
 			scrolltab.Visible = false
 			scrolltabInfo.Visible = true
 
-			sv.ts:Create(swapIcon, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Rotation = 0,
-				ImageTransparency = 0,
-				ImageColor3 = guiconfig.Color,
-			}):Play()
+			swapIcon.Rotation = 0
+			swapIcon.ImageTransparency = 0
+			swapIcon.ImageColor3 = Color3.fromRGB(45, 170, 255)
 
 			if activeInfoPage then
 				local prevTime = layerspagelayout.TweenTime
 				layerspagelayout.TweenTime = 0
-				layerspagelayout:JumpTo(activeInfoPage)
+				jumpToPage(activeInfoPage)
 				task.defer(function()
 					layerspagelayout.TweenTime = prevTime
 				end)
@@ -4658,16 +5621,14 @@ function Chloex:Window(guiconfig)
 			scrolltabInfo.Visible = false
 			scrolltab.Visible = true
 
-			sv.ts:Create(swapIcon, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Rotation = 0,
-				ImageTransparency = 0.55,
-				ImageColor3 = Color3.fromRGB(160, 160, 160),
-			}):Play()
+			swapIcon.Rotation = 0
+			swapIcon.ImageTransparency = 0.55
+			swapIcon.ImageColor3 = Color3.fromRGB(160, 160, 160)
 
 			if activeMainPage then
 				local prevTime = layerspagelayout.TweenTime
 				layerspagelayout.TweenTime = 0
-				layerspagelayout:JumpTo(activeMainPage)
+				jumpToPage(activeMainPage)
 				task.defer(function()
 					layerspagelayout.TweenTime = prevTime
 				end)
@@ -4879,7 +5840,7 @@ function Chloex:Window(guiconfig)
 
 					local prevTime = layerspagelayout.TweenTime
 					layerspagelayout.TweenTime = 0
-					layerspagelayout:JumpTo(data.Page)
+					jumpToPage(data.Page)
 					task.defer(function()
 						layerspagelayout.TweenTime = prevTime
 					end)
@@ -4891,13 +5852,13 @@ function Chloex:Window(guiconfig)
 								local cf = tabframe:FindFirstChild("ChooseFrame")
 								if cf then
 									cf.Parent = data.Tab
+									cf.AnchorPoint = Vector2.new(0, 0.5)
 									if guiconfig.Type == 3 then
-										cf.AnchorPoint = Vector2.new(0, 0.5)
 										cf.Position = UDim2.new(0, 0, 0.5, 0)
 										cf.Size = UDim2.new(0, 2.5, 0, 16)
 									else
-										cf.Position = UDim2.new(0, 2, 0, 9)
-										cf.Size = UDim2.new(0, 1, 0, 12)
+										cf.Position = UDim2.new(0, 2, 0.5, 0)
+										cf.Size = UDim2.new(0, 2, 0, 14)
 									end
 								end
 								if guiconfig.Type == 3 then
@@ -5605,6 +6566,7 @@ function Chloex:Window(guiconfig)
 		scrollayers.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 80)
 		scrollayers.ScrollBarThickness = 0
 		scrollayers.Active = true
+		scrollayers.Visible = isFirstInMode
 		scrollayers.LayoutOrder = layoutOrder
 		scrollayers.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 		scrollayers.BackgroundTransparency = 0.999
@@ -5727,10 +6689,15 @@ function Chloex:Window(guiconfig)
 
 			onOpenRan = true
 			task.spawn(function()
-				local ok, err = pcall(onOpenCallback)
+				local ok, err = pcall(onOpenCallback, sections)
 				if not ok then
 					warn("Tab OnOpen error:", err)
 				end
+				task.defer(function()
+					if updatesizescroll then
+						updatesizescroll()
+					end
+				end)
 			end)
 		end
 
@@ -5801,14 +6768,14 @@ function Chloex:Window(guiconfig)
 				activeMainPage = scrollayers
 				activeMainRunOnOpen = runOnOpen
 				if currentViewMode == "Main" then
-					layerspagelayout:JumpTo(scrollayers)
+					jumpToPage(scrollayers)
 				end
 			else
 				activeInfoTab = tab
 				activeInfoPage = scrollayers
 				activeInfoRunOnOpen = runOnOpen
 				if currentViewMode == "Info" then
-					layerspagelayout:JumpTo(scrollayers)
+					jumpToPage(scrollayers)
 				end
 			end
 
@@ -5817,22 +6784,22 @@ function Chloex:Window(guiconfig)
 			chooseframe.BackgroundColor3 = guiconfig.Color
 			chooseframe.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			chooseframe.BorderSizePixel = 0
+			chooseframe.AnchorPoint = Vector2.new(0, 0.5)
 			if guiconfig.Type == 3 then
-				chooseframe.AnchorPoint = Vector2.new(0, 0.5)
 				chooseframe.Position = UDim2.new(0, 0, 0.5, 0)
 				chooseframe.Size = UDim2.new(0, 2, 0, 16)
 			else
-				chooseframe.Position = UDim2.new(0, 2, 0, 9)
-				chooseframe.Size = UDim2.new(0, 1, 0, 12)
+				chooseframe.Position = UDim2.new(0, 2, 0.5, 0)
+				chooseframe.Size = UDim2.new(0, 2, 0, 14)
 			end
 
 			if guiconfig.Type ~= 3 then
 				local uistroke2 = instance.uistroke(chooseframe)
 				uistroke2.Color = guiconfig.Color
-				uistroke2.Thickness = 1.6
+				uistroke2.Thickness = 1
 			end
 
-			instance.uicorner(chooseframe).CornerRadius = UDim.new(0, (guiconfig.Type == 3) and 1 or 2)
+			instance.uicorner(chooseframe).CornerRadius = UDim.new(1, 0)
 		end
 
 		tabbutton.MouseEnter:Connect(function()
@@ -5898,11 +6865,14 @@ function Chloex:Window(guiconfig)
 				return
 			end
 
-			if layerspagelayout.CurrentPage == scrollayers then
+			if layerspagelayout.CurrentPage == scrollayers and scrollayers.Visible then
+				scrollayers.Position = UDim2.new(0, 0, 0, 0)
 				runOnOpen()
 				return
 			end
 
+			framechoose.Parent = tab
+			framechoose.AnchorPoint = Vector2.new(0, 0.5)
 			if guiconfig.Type == 3 then
 				tab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 				tab.BackgroundTransparency = 0
@@ -5911,18 +6881,15 @@ function Chloex:Window(guiconfig)
 					icon.ImageColor3 = tabconfig.IconColor or guiconfig.Color
 					icon.ImageTransparency = 0
 				end
-				framechoose.Parent = tab
-				framechoose.AnchorPoint = Vector2.new(0, 0.5)
 				framechoose.Position = UDim2.new(0, 0, 0.5, 0)
 				framechoose.Size = UDim2.new(0, 2, 0, 16)
 			else
 				tab.BackgroundTransparency = 0.92
-				framechoose.Parent = tab
-				framechoose.Position = UDim2.new(0, 2, 0, 6)
-				framechoose.Size = UDim2.new(0, 1, 0, 18)
+				framechoose.Position = UDim2.new(0, 2, 0.5, 0)
+				framechoose.Size = UDim2.new(0, 2, 0, 14)
 			end
 
-			layerspagelayout:JumpTo(scrollayers)
+			jumpToPage(scrollayers)
 			runOnOpen()
 
 			if isInfo then
@@ -5934,16 +6901,6 @@ function Chloex:Window(guiconfig)
 				activeMainPage = scrollayers
 				activeMainRunOnOpen = runOnOpen
 			end
-
-			if guiconfig.Type ~= 3 then
-				task.spawn(function()
-					task.wait(0.06)
-					if framechoose and framechoose.Parent == tab then
-						framechoose.Size = UDim2.new(0, 1, 0, 12)
-						framechoose.Position = UDim2.new(0, 2, 0, 9)
-					end
-				end)
-			end
 		end)
 
 		local sections = {}
@@ -5951,9 +6908,22 @@ function Chloex:Window(guiconfig)
 
 		function sections:OnOpen(callback)
 			onOpenCallback = callback
-			if isFirstTab then
+			if isFirstInMode then
 				runOnOpen()
 			end
+			return self
+		end
+
+		function sections:Lazy(callback)
+			return self:OnOpen(callback)
+		end
+
+		function sections:LazyLoad(callback)
+			return self:OnOpen(callback)
+		end
+
+		function sections:Preload()
+			runOnOpen()
 			return self
 		end
 
@@ -5979,14 +6949,14 @@ function Chloex:Window(guiconfig)
 				side = secCfg.Side or secCfg.Column
 			else
 				if alwaysopen == true then
-					isLockedOpen = true
+					isLockedOpen = false
 					startOpen = true
 				elseif alwaysopen == false then
 					isLockedOpen = false
 					startOpen = false
 				else
 					isLockedOpen = false
-					startOpen = true
+					startOpen = false
 				end
 			end
 			sectiontitletext = sectiontitletext or "Title"
@@ -8605,28 +9575,41 @@ function Chloex:Window(guiconfig)
 						clickBtn.Size = isDown and UDim2.new(1, 0, 0, 32) or UDim2.new(1, 0, 1, -20)
 						clickBtn.ZIndex = 5
 
+						local dragConn = nil
+						local endConn = nil
+
+						local function stopdrag()
+							if not dragging then return end
+							dragging = false
+							if dragConn then
+								dragConn:Disconnect()
+								dragConn = nil
+							end
+							if endConn then
+								endConn:Disconnect()
+								endConn = nil
+							end
+						end
+
 						clickBtn.InputBegan:Connect(function(inputObj)
 							if inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch then
 								dragging = true
 								updateFromInput(inputObj)
-							end
-						end)
 
-						clickBtn.InputEnded:Connect(function(inputObj)
-							if inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch then
-								dragging = false
-							end
-						end)
+								if dragConn then dragConn:Disconnect() end
+								if endConn then endConn:Disconnect() end
 
-						sv.uis.InputChanged:Connect(function(inputObj)
-							if dragging and (inputObj.UserInputType == Enum.UserInputType.MouseMovement or inputObj.UserInputType == Enum.UserInputType.Touch) then
-								updateFromInput(inputObj)
-							end
-						end)
+								dragConn = sv.uis.InputChanged:Connect(function(moveInput)
+									if dragging and (moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch) then
+										updateFromInput(moveInput)
+									end
+								end)
 
-						sv.uis.InputEnded:Connect(function(inputObj)
-							if dragging and (inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch) then
-								dragging = false
+								endConn = sv.uis.InputEnded:Connect(function(endInput)
+									if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+										stopdrag()
+									end
+								end)
 							end
 						end)
 
@@ -9428,29 +10411,45 @@ function Chloex:Window(guiconfig)
 					end
 				end
 
-				-- // Slider interaction logic
+				-- // Slider interaction logic (On-Demand Connection Pattern)
 				local function bindSlider(bar, onUpdate)
-					local dragging = false
+					local dragConn = nil
+					local endConn = nil
+
+					local function stopDrag()
+						if dragConn then
+							dragConn:Disconnect()
+							dragConn = nil
+						end
+						if endConn then
+							endConn:Disconnect()
+							endConn = nil
+						end
+					end
+
 					local function updatePos(input)
 						local relX = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
 						onUpdate(relX)
 					end
+
 					bar.InputBegan:Connect(function(input)
 						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-							dragging = true
+							stopDrag()
 							updatePos(input)
+
+							dragConn = sv.uis.InputChanged:Connect(function(moveInput)
+								if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+									updatePos(moveInput)
+								end
+							end)
+
+							endConn = sv.uis.InputEnded:Connect(function(endInput)
+								if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+									stopDrag()
+								end
+							end)
 						end
 					end)
-					trackConnection(sv.uis.InputChanged:Connect(function(input)
-						if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-							updatePos(input)
-						end
-					end), "colorpicker.barDrag")
-					trackConnection(sv.uis.InputEnded:Connect(function(input)
-						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-							dragging = false
-						end
-					end), "colorpicker.barDragEnd")
 				end
 
 				bindSlider(hueBar, function(rel)
@@ -10087,7 +11086,7 @@ function Chloex:Window(guiconfig)
 				dropdownconfig.Title = dropdownconfig.Title or "Title"
 				dropdownconfig.Multi = dropdownconfig.Multi or false
 				dropdownconfig.Advanced = dropdownconfig.Advanced or false
-				dropdownconfig.Options = dropdownconfig.Options or {}
+				dropdownconfig.Options = dropdownconfig.Options or dropdownconfig.Items or dropdownconfig.Values or dropdownconfig.List or {}
 				dropdownconfig.Default = dropdownconfig.Default or (dropdownconfig.Multi and {} or nil)
 				dropdownconfig.Callback = dropdownconfig.Callback or function() end
 
@@ -10458,7 +11457,20 @@ function Chloex:Window(guiconfig)
 					end
 				end
 
-				local style = dropdownconfig.Style or "Accordion"
+				local style = dropdownconfig.Style
+				if not style and dropdownconfig.Type then
+					local t = tonumber(dropdownconfig.Type) or dropdownconfig.Type
+					if t == 1 or t == "1" or t == "Accordion" then
+						style = "Accordion"
+					elseif t == 2 or t == "2" or t == "Popover" then
+						style = "Popover"
+					elseif t == 3 or t == "3" or t == "Chips" then
+						style = "Chips"
+					elseif t == 4 or t == "4" or t == "Grid" then
+						style = "Grid"
+					end
+				end
+				style = style or "Accordion"
 
 				if style == "Accordion" then
 					local dropSubText = dropdownconfig.Title2 or dropdownconfig.Content or dropdownconfig.SubTitle or dropdownconfig.Description
@@ -10657,7 +11669,7 @@ function Chloex:Window(guiconfig)
 								visibleCount = visibleCount + 1
 							end
 						end
-						local contentHeight = math.min(140, uilist.AbsoluteContentSize.Y + 4)
+						local contentHeight = math.min(150, uilist.AbsoluteContentSize.Y + 4)
 						if visibleCount == 0 then contentHeight = 20 end
 						local totalH = isOpen and (headHeight + 32 + contentHeight + 8) or headHeight
 						local rot = isOpen and 0 or -90
@@ -10763,6 +11775,7 @@ function Chloex:Window(guiconfig)
 						optbtn.BorderSizePixel = 0
 						optbtn.AutoButtonColor = false
 						optbtn.Text = ""
+						optbtn.ClipsDescendants = true
 						instance.uicorner(optbtn).CornerRadius = UDim.new(0, 4)
 
 						local ostroke = instance.uistroke(optbtn)
@@ -10781,18 +11794,41 @@ function Chloex:Window(guiconfig)
 						bar:SetAttribute("TargetHeight", barHeight)
 						instance.uicorner(bar).CornerRadius = UDim.new(0, 2)
 
-						local textX = 13
+						local textX = 14
 						if hasImg then
-							local icon = instance.imagelabel(optbtn)
+							local artworkContainer = Instance.new("Frame")
+							artworkContainer.Name = "ArtworkContainer"
+							artworkContainer.AnchorPoint = Vector2.new(1, 0.5)
+							artworkContainer.Position = UDim2.new(1, 0, 0.5, 0)
+							artworkContainer.Size = UDim2.new(0, math.floor(height * 1.6), 1, 0)
+							artworkContainer.BackgroundTransparency = 1
+							artworkContainer.ClipsDescendants = true
+							artworkContainer.ZIndex = 1
+							artworkContainer.Parent = optbtn
+
+							local icon = Instance.new("ImageLabel")
 							icon.Name = "OptionIcon"
 							icon.Image = img
 							icon.BackgroundTransparency = 1
-							local iconSize = hasDesc and 26 or 22
-							icon.Position = UDim2.new(0, 11, 0.5, -math.floor(iconSize / 2))
-							icon.Size = UDim2.new(0, iconSize, 0, iconSize)
+							icon.AnchorPoint = Vector2.new(1, 0.5)
+							icon.Position = UDim2.new(1, 4, 0.5, 0)
+							local artH = height + 4
+							icon.Size = UDim2.new(0, artH, 0, artH)
 							icon.ScaleType = Enum.ScaleType.Fit
-							instance.uicorner(icon).CornerRadius = UDim.new(0, 4)
-							textX = 11 + iconSize + 7
+							icon.ImageColor3 = Color3.fromRGB(220, 220, 220)
+							icon.ZIndex = 1
+							icon.Parent = artworkContainer
+
+							local iconGrad = Instance.new("UIGradient")
+							iconGrad.Name = "ArtworkGradient"
+							iconGrad.Transparency = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 1),
+								NumberSequenceKeypoint.new(0.35, 0.7),
+								NumberSequenceKeypoint.new(0.75, 0.2),
+								NumberSequenceKeypoint.new(1, 0),
+							})
+							iconGrad.Rotation = 0
+							iconGrad.Parent = icon
 						end
 
 						local opttext = instance.textlabel(optbtn)
@@ -10804,10 +11840,11 @@ function Chloex:Window(guiconfig)
 						opttext.TextXAlignment = Enum.TextXAlignment.Left
 						opttext.TextTruncate = Enum.TextTruncate.AtEnd
 						opttext.BackgroundTransparency = 1
+						opttext.ZIndex = 2
 
 						if hasDesc then
 							opttext.Position = UDim2.new(0, textX, 0, 4)
-							opttext.Size = UDim2.new(1, -(textX + 8), 0, 15)
+							opttext.Size = UDim2.new(1, -(textX + (hasImg and 60 or 10)), 0, 15)
 
 							local optdesc = instance.textlabel(optbtn)
 							optdesc.Name = "OptionDesc"
@@ -10820,13 +11857,14 @@ function Chloex:Window(guiconfig)
 							optdesc.TextTruncate = Enum.TextTruncate.AtEnd
 							optdesc.BackgroundTransparency = 1
 							optdesc.Position = UDim2.new(0, textX, 0, 21)
-							optdesc.Size = UDim2.new(1, -(textX + 8), 0, 14)
+							optdesc.Size = UDim2.new(1, -(textX + (hasImg and 60 or 10)), 0, 14)
+							optdesc.ZIndex = 2
 						else
 							opttext.Position = UDim2.new(0, textX, 0, 0)
-							opttext.Size = UDim2.new(1, -(textX + 8), 1, 0)
+							opttext.Size = UDim2.new(1, -(textX + (hasImg and 60 or 10)), 1, 0)
 						end
 
-						optbtn:SetAttribute("RealValue", value)
+												optbtn:SetAttribute("RealValue", value)
 
 						optbtn.MouseEnter:Connect(function()
 							sv.ts:Create(optbtn, TweenInfo.new(0.12), { BackgroundColor3 = Color3.fromRGB(30, 30, 30) }):Play()
@@ -10871,13 +11909,17 @@ function Chloex:Window(guiconfig)
 								local targetH = drop.Bar:GetAttribute("TargetHeight") or 14
 								local targetBar = selected and UDim2.new(0, 3, 0, targetH) or UDim2.new(0, 0, 0, targetH)
 								local targetTextCol = selected and guiconfig.Color or Color3.fromRGB(200, 200, 200)
+								local optIcon = drop:FindFirstChild("OptionIcon", true)
+								local targetIconCol = selected and guiconfig.Color or Color3.fromRGB(220, 220, 220)
 
 								if instant then
 									drop.Bar.Size = targetBar
 									drop.OptionText.TextColor3 = targetTextCol
+									if optIcon then optIcon.ImageColor3 = targetIconCol end
 								else
 									sv.ts:Create(drop.Bar, TweenInfo.new(0.15), { Size = targetBar }):Play()
 									sv.ts:Create(drop.OptionText, TweenInfo.new(0.15), { TextColor3 = targetTextCol }):Play()
+									if optIcon then sv.ts:Create(optIcon, TweenInfo.new(0.15), { ImageColor3 = targetIconCol }):Play() end
 								end
 
 								if selected then
@@ -12806,10 +13848,11 @@ function Chloex:Window(guiconfig)
 					local percentInt = math.floor(targetRatio * 100)
 
 					if statusLabel then
+						local stepWord = (guiconfig.Language == "en") and "Step" or "Tahap"
 						if progressconfig.ShowPercentage then
-							statusLabel.Text = string.format("Tahap %d/%d (%d%%)", stepIdx, stepCount, percentInt)
+							statusLabel.Text = string.format("%s %d/%d (%d%%)", stepWord, stepIdx, stepCount, percentInt)
 						else
-							statusLabel.Text = string.format("Tahap %d/%d", stepIdx, stepCount)
+							statusLabel.Text = string.format("%s %d/%d", stepWord, stepIdx, stepCount)
 						end
 					end
 
@@ -12878,10 +13921,11 @@ function Chloex:Window(guiconfig)
 
 								if statusLabel then
 									local percentInt = math.floor(targetRatio * 100)
+									local stepWord = (guiconfig.Language == "en") and "Step" or "Tahap"
 									if progressconfig.ShowPercentage then
-										statusLabel.Text = string.format("Tahap %d/%d (%d%%)", s, stepCount, percentInt)
+										statusLabel.Text = string.format("%s %d/%d (%d%%)", stepWord, s, stepCount, percentInt)
 									else
-										statusLabel.Text = string.format("Tahap %d/%d", s, stepCount)
+										statusLabel.Text = string.format("%s %d/%d", stepWord, s, stepCount)
 									end
 								end
 
@@ -13615,6 +14659,16 @@ function Chloex:Window(guiconfig)
 			return scrollayers
 		end
 
+		if typeof(tabconfig.Lazy) == "function" then
+			sections:OnOpen(tabconfig.Lazy)
+		elseif typeof(tabconfig.LazyLoad) == "function" then
+			sections:OnOpen(tabconfig.LazyLoad)
+		elseif typeof(tabconfig.OnOpen) == "function" then
+			sections:OnOpen(tabconfig.OnOpen)
+		end
+
+		table.insert(registeredTabs, sections)
+
 		counttab = counttab + 1
 		local safename = tabconfig.Name:gsub("%s+", "_")
 		_G[safename] = sections
@@ -13642,17 +14696,16 @@ function Chloex:Window(guiconfig)
 		end
 	end
 
-	function tabs:Watermark(watermarkconfig)
-		watermarkconfig = watermarkconfig or {}
-		watermarkconfig.Parent = chloeex
-		watermarkconfig.Font = guiconfig.Font
-		watermarkconfig.Color = guiconfig.Color
-		if watermarkconfig.Title == nil then
-			watermarkconfig.Title = guiconfig.Title or "Chloe X"
+	function tabs:Watermark()
+		return Chloex:Watermark()
+	end
+
+	function tabs:PreloadAll()
+		for _, tabObj in ipairs(registeredTabs) do
+			if tabObj and tabObj.Preload then
+				tabObj:Preload()
+			end
 		end
-		local wm = Chloex:Watermark(watermarkconfig)
-		tabs._watermark = wm
-		return wm
 	end
 
 	function tabs:ToggleSearch(state)
@@ -13661,6 +14714,7 @@ function Chloex:Window(guiconfig)
 				state = not searchlayer.Visible
 			end
 			if state then
+				tabs:PreloadAll()
 				if guiconfig.Type == 3 and search then
 					search.Visible = true
 				end
@@ -13719,7 +14773,7 @@ function Chloex:Window(guiconfig)
 		-- // Tab 1: Information
 		local infoTab = tabs:AddInfoTab({
 			Name = isRu and "Информация" or (isEn and "Information" or "Informasi"),
-			Icon = (guiconfig.HubIcons and (guiconfig.HubIcons.Information or guiconfig.HubIcons.Info or guiconfig.HubIcons.information or guiconfig.HubIcons.info)) or DEFAULT_CONFIG.HubIcons.Information,
+			Icon = (guiconfig.Type == 3) and ((guiconfig.HubIcons and (guiconfig.HubIcons.Information or guiconfig.HubIcons.Info or guiconfig.HubIcons.information or guiconfig.HubIcons.info)) or DEFAULT_CONFIG.HubIcons.Information) or nil,
 			LayoutOrder = 1,
 			StartActive = true,
 		})
@@ -14075,6 +15129,9 @@ function Chloex:Window(guiconfig)
 	if bannerButton then
 		bannerButton.Active = true
 	end
+	if swapButton then
+		swapButton.Active = true
+	end
 	if swapIcon then
 		swapIcon.Visible = (guiconfig.Type ~= 3)
 	end
@@ -14098,14 +15155,17 @@ function Chloex:Window(guiconfig)
 		end
 	end)
 
-		if guiconfig.Watermark then
-		local wmCfg = (type(guiconfig.Watermark) == "table") and guiconfig.Watermark or {}
-		tabs:Watermark(wmCfg)
-	end
+	
 
 	tabs.Config = config
 	tabs.DestroyGui = function()
 		return guifunc:DestroyGui()
+	end
+	tabs.ToggleWindow = function(_, state)
+		return toggleMainWindow(state)
+	end
+	guifunc.ToggleWindow = function(_, state)
+		return toggleMainWindow(state)
 	end
 	guifunc.Config = config
 	guifunc.SetUpdateLogs = function(_, ...)
@@ -14116,6 +15176,7 @@ function Chloex:Window(guiconfig)
 	end
 	if getgenv then
 		getgenv().ChloeX_Window = tabs
+		getgenv().ChloeX_Tabs = tabs
 	end
 
 	task.defer(function()
@@ -14130,8 +15191,17 @@ function Chloex:Window(guiconfig)
 		end
 	end)
 
+	if startWindowLifecycle then
+		startWindowLifecycle()
+	end
+
 	return tabs
 end
+
+Chloex.GlassLifecycle = GlassLifecycle
+Chloex.CreateWindow = Chloex.Window
+Chloex.MakeWindow = Chloex.Window
+Chloex.Create = Chloex.Window
 
 if getgenv then
 	getgenv().ChloeX = Chloex
