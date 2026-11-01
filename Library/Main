@@ -1,3 +1,15 @@
+--   ██████╗██╗  ██╗██╗      ██████╗ ███████╗██╗  ██╗
+--  ██╔════╝██║  ██║██║     ██╔═══██╗██╔════╝╚██╗██╔╝
+--  ██║     ███████║██║     ██║   ██║█████╗   ╚███╔╝ 
+--  ██║     ██╔══██║██║     ██║   ██║██╔══╝   ██╔██╗ 
+--  ╚██████╗██║  ██║███████╗╚██████╔╝███████╗██╔╝ ██╗
+--   ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
+-- [[ 
+-- Chloe X Library
+-- Version Library : 1.0.1
+-- Date Update : 1 Nov 2026
+-- ]]
+
 local getgenv = getgenv or function()
 	return _G
 end
@@ -2228,6 +2240,9 @@ function Chloex:Window(guiconfig)
 	guiconfig.LoadUserThumbnail = guiconfig.LoadUserThumbnail ~= false
 	guiconfig.ThumbnailDelay = tonumber(guiconfig.ThumbnailDelay) or 8
 	guiconfig.Type = tonumber(guiconfig.Type) or 1
+	guiconfig.LoadingScreen = (guiconfig.LoadingScreen ~= false)
+	guiconfig.GlassIntro = (guiconfig.GlassIntro ~= false)
+	guiconfig.GlassOutro = (guiconfig.GlassOutro ~= false)
 	guiconfig.MiniUI = (guiconfig.MiniUI == true)
 	guiconfig.ToggleUIStyle = guiconfig.ToggleUIStyle or (guiconfig.MiniUI and "Overlay" or "Square")
 	local toggleUIStyle = guiconfig.ToggleUIStyle
@@ -2407,12 +2422,12 @@ function Chloex:Window(guiconfig)
 
 		-- // Native Window Lifecycle Controller
 	local lifecycle = {
-		enableLoading = (guiconfig.LoadingScreen == true or type(guiconfig.LoadingScreen) == "table"),
-		enableGlassIntro = (guiconfig.GlassIntro ~= false) and ((guiconfig.LoadingScreen == true or type(guiconfig.LoadingScreen) == "table") or guiconfig.GlassIntro == true),
-		enableGlassOutro = (guiconfig.GlassOutro ~= false),
-		isLoadingActive = false,
-		visConn = nil,
-		fxHolder = Instance.new("Frame"),
+        enableLoading = (guiconfig.LoadingScreen ~= false),
+        enableGlassIntro = (guiconfig.GlassIntro ~= false),
+        enableGlassOutro = (guiconfig.GlassOutro ~= false),
+        isLoadingActive = false,
+        visConn = nil,
+        fxHolder = Instance.new("Frame"),
 	}
 	lifecycle.isLoadingActive = lifecycle.enableLoading
 	lifecycle.fxHolder.Name = "FxHolder"
