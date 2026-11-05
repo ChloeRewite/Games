@@ -1,14 +1,19 @@
---   ██████╗██╗  ██╗██╗      ██████╗ ███████╗██╗  ██╗
---  ██╔════╝██║  ██║██║     ██╔═══██╗██╔════╝╚██╗██╔╝
---  ██║     ███████║██║     ██║   ██║█████╗   ╚███╔╝ 
---  ██║     ██╔══██║██║     ██║   ██║██╔══╝   ██╔██╗ 
---  ╚██████╗██║  ██║███████╗╚██████╔╝███████╗██╔╝ ██╗
---   ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
--- [[ 
+--[[
+ ▄████▄   ██░ ██  ██▀███   ▒█████   ███▄    █  ▒█████   ▄▄▄      
+▒██▀ ▀█  ▓██░ ██▒▓██ ▒ ██▒▒██▒  ██▒ ██ ▀█   █ ▒██▒  ██▒▒████▄    
+▒▓█    ▄ ▒██▀▀██░▓██ ░▄█ ▒▒██░  ██▒▓██  ▀█ ██▒▒██░  ██▒▒██  ▀█▄  
+▒▓▓▄ ▄██▒░▓█ ░██ ▒██▀▀█▄  ▒██   ██░▓██▒  ▐▌██▒▒██   ██░░██▄▄▄▄██ 
+▒ ▓███▀ ░░▓█▒░██▓░██▓ ▒██▒░ ████▓▒░▒██░   ▓██░░ ████▓▒░ ▓█   ▓██▒
+░ ░▒ ▒  ░ ▒ ░░▒░▒░ ▒▓ ░▒▓░░ ▒░▒░▒░ ░ ▒░   ▒ ▒ ░ ▒░▒░▒░  ▒▒   ▓▒█░
+  ░  ▒    ▒ ░▒░ ░  ░▒ ░ ▒░  ░ ▒ ▒░ ░ ░░   ░ ▒░  ░ ▒ ▒░   ▒   ▒▒ ░
+░         ░  ░░ ░  ░░   ░ ░ ░ ░ ▒     ░   ░ ░ ░ ░ ░ ▒    ░   ▒   
+░ ░       ░  ░  ░   ░         ░ ░           ░     ░ ░        ░  ░
+░                                             
 -- Chloe X Library
--- Version Library : 1.0.1
--- Date Update : 1 Nov 2026
+-- Version Library : 1.0.2
+-- Date Update : 5 Nov 2026
 -- ]]
+
 
 local getgenv = getgenv or function()
 	return _G
@@ -24,12 +29,24 @@ local sv = {
 	run = game:GetService("RunService"),
 }
 
--- // Hybrid Dev Endpoints (UI via Local, Components via GitHub)
 local DEFAULT_CONFIG = {
 	GameSupport = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/GameSupport",
 	Changelogs = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Changelogs/",
 	Advanced = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Advanced",
-	Discord = "https://discord.gg/chloex",
+	Discord = "https://discord.gg/PaPvGUE8UC",
+	DiscordStore = "https://discord.gg/chloexstore",
+	DiscordUgPhone = "https://discord.com/invite/ugphone-official",
+	DiscordUgPhoneID = "https://discord.gg/5cqYn4KPh6",
+	Discords = {
+		Chloe = "https://discord.gg/PaPvGUE8UC",
+		ChloeX = "https://discord.gg/PaPvGUE8UC",
+		Community = "https://discord.gg/PaPvGUE8UC",
+		UgPhone = "https://discord.com/invite/ugphone-official",
+		UgPhoneID = "https://discord.gg/5cqYn4KPh6",
+		UgPhoneMY = "https://discord.gg/5cqYn4KPh6",
+		ChloeStore = "https://discord.gg/chloexstore",
+		Store = "https://discord.gg/chloexstore",
+	},
 	HubIcons = {
 		Information = "90837140373377",
 		GameSupport = "99346474524663",
@@ -42,7 +59,6 @@ local DEFAULT_CONFIG = {
 
 local scriptStartTime = os.time()
 
--- // Global session tracking
 if getgenv().ChloeX_Running == nil then
 	getgenv().ChloeX_Running = false
 end
@@ -433,7 +449,7 @@ function config:loadelements()
 	end
 end
 
-function config:reset()
+function config:reset(forceOffToggles)
 	self.data = {
 		_version = self.version,
 	}
@@ -442,6 +458,18 @@ function config:reset()
 		if element.Set then
 			pcall(function()
 				local elementType = element._configType
+
+				if forceOffToggles then
+					if elementType == "Toggle" then
+						element:Set(false, true)
+					elseif elementType == "DualToggle" then
+						element:Set(false, true)
+						if element.SetSub then
+							element:SetSub(false, true)
+						end
+					end
+					return
+				end
 
 				if element.Default ~= nil then
 					element:Set(element.Default)
@@ -496,7 +524,6 @@ function config:loadexternal(json)
 	return true
 end
 
--- // Pure Luau Base64 Utilities
 local b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 local b64lookup = {}
 for i = 1, 64 do
@@ -707,7 +734,6 @@ local function formatAsset(asset)
 	return "rbxassetid://" .. s
 end
 
--- // Helper to clamp any GUI element strictly within viewport boundaries (opsional tanpa batas atas jika allowTopOverflow)
 local function clampPositionToScreen(obj, targetScaleX, targetOffsetX, targetScaleY, targetOffsetY, allowTopOverflow)
 	local screen = obj:FindFirstAncestorWhichIsA("ScreenGui")
 	local sw = (screen and screen.AbsoluteSize.X > 0) and screen.AbsoluteSize.X
@@ -730,7 +756,7 @@ local function clampPositionToScreen(obj, targetScaleX, targetOffsetX, targetSca
 	local clampedPixelX = math.clamp(rawPixelX, minX, maxX)
 	local clampedPixelY
 	if allowTopOverflow then
-		-- // Bebas ditarik ke atas layar tanpa pembatas keluar layar atas
+
 		clampedPixelY = math.min(rawPixelY, maxY)
 	else
 		local minY = h * ay
@@ -944,7 +970,7 @@ function Chloex:MakeNotify(notifyconfig)
 			listLayout.Padding = UDim.new(0, 8)
 			listLayout.Parent = notifylayout
 		else
-			-- // Ensure UIListLayout is present and old manual listener is removed
+
 			if not notifylayout:FindFirstChildOfClass("UIListLayout") then
 				local listLayout = Instance.new("UIListLayout")
 				listLayout.Name = "NotifyList"
@@ -957,7 +983,6 @@ function Chloex:MakeNotify(notifyconfig)
 			end
 		end
 
-		-- // Anti-Spam: Purge oldest notification if 2 or more are already displayed
 		local currentNotifs = {}
 		for _, child in ipairs(notifylayout:GetChildren()) do
 			if child:IsA("Frame") and child.Name == "NotifyFrame" then
@@ -1155,7 +1180,6 @@ local function chloex(msg, delay, color, title, desc)
 end
 Chloex.Notify = chloex
 
-
 function Chloex:MakeOverlay(overlayconfig)
 	overlayconfig = overlayconfig or {}
 	overlayconfig.Content = overlayconfig.Content or "Status"
@@ -1250,18 +1274,15 @@ function Chloex:Watermark()
 	}
 end
 
--- // Cinematic Glass Shards and Fatal Corrupted Glitch System
--- // Preserved from LoadingScreen_CorruptGlitch.lua (File-level scope to avoid 200 local register limit)
--- // Strictly Hitam, Biru Muda (Cyan), Biru Tua (Royal Blue)
 local GlassLifecycle = {}
 
 do
 	local Debris = game:GetService("Debris")
 	local TweenService = game:GetService("TweenService")
 
-	local COLOR_BLACK = Color3.fromRGB(10, 10, 14)       -- // Hitam
-	local COLOR_LIGHT_BLUE = Color3.fromRGB(0, 225, 255)  -- // Biru Muda (Electric Cyan)
-	local COLOR_DARK_BLUE = Color3.fromRGB(15, 60, 185)   -- // Biru Tua (Deep Royal/Navy Blue)
+	local COLOR_BLACK = Color3.fromRGB(10, 10, 14)
+	local COLOR_LIGHT_BLUE = Color3.fromRGB(0, 225, 255)
+	local COLOR_DARK_BLUE = Color3.fromRGB(15, 60, 185)
 
 	local GLITCH_COLORS = {
 		COLOR_BLACK,
@@ -1270,11 +1291,11 @@ do
 	}
 
 	local GLASS_COLORS = {
-		Color3.fromRGB(0, 235, 255),  -- // Biru Muda Glass
-		Color3.fromRGB(15, 65, 190),  -- // Biru Tua Glass
-		Color3.fromRGB(60, 180, 255), -- // Biru Muda Medium
-		Color3.fromRGB(12, 12, 16),   -- // Hitam Obsidian Glass
-		Color3.fromRGB(8, 30, 110),   -- // Biru Tua Pekat
+		Color3.fromRGB(0, 235, 255),
+		Color3.fromRGB(15, 65, 190),
+		Color3.fromRGB(60, 180, 255),
+		Color3.fromRGB(12, 12, 16),
+		Color3.fromRGB(8, 30, 110),
 	}
 
 	local CORRUPT_TITLES = {
@@ -1510,10 +1531,8 @@ do
 			absPos = Vector2.new(100, 100)
 		end
 
-		-- // STRICT: Window rotation is always 0 to preserve clipping
 		windowFrame.Rotation = 0
 
-		-- // Ensure all inactive tab pages are strictly Visible = false
 		local layersfolder = windowFrame:FindFirstChild("LayersFolder", true)
 		if layersfolder then
 			local layout = layersfolder:FindFirstChildWhichIsA("UIPageLayout")
@@ -1527,7 +1546,6 @@ do
 			end
 		end
 
-		-- // Scramble ALL TextLabels and TextButtons across the window into binary error numbers (00101010101)
 		local trackedTexts = {}
 		for _, inst in ipairs(windowFrame:GetDescendants()) do
 			if (inst:IsA("TextLabel") or inst:IsA("TextButton")) and inst.Visible and inst.Text and inst.Text ~= "" then
@@ -1536,6 +1554,9 @@ do
 					origText = inst.Text,
 					origColor = inst.TextColor3,
 				})
+				if #trackedTexts >= 40 then
+					break
+				end
 			end
 		end
 
@@ -1558,7 +1579,6 @@ do
 
 		local endTime = os.clock() + duration
 
-		-- // Ghost Frames (Cyan, Dark Blue, Black) tightly behind center window
 		local cyanGhost = Instance.new("Frame")
 		cyanGhost.Name = "GlitchGhost_Cyan"
 		cyanGhost.BackgroundColor3 = COLOR_LIGHT_BLUE
@@ -1595,7 +1615,6 @@ do
 		Instance.new("UICorner", blackGhost).CornerRadius = UDim.new(0, 8)
 		Debris:AddItem(blackGhost, duration + 0.1)
 
-		-- // Missing VRAM scanline slice bars (Hitam, Biru Muda, Biru Tua)
 		local slicePool = {}
 		for i = 1, 14 do
 			local sl = Instance.new("Frame")
@@ -1608,7 +1627,6 @@ do
 			Debris:AddItem(sl, duration + 0.1)
 		end
 
-		-- // Dynamic Floating Error Code Overlays (00101010101) flickering on center window
 		local errorLabels = {}
 		for i = 1, 6 do
 			local lbl = Instance.new("TextLabel")
@@ -1626,7 +1644,6 @@ do
 			Debris:AddItem(lbl, duration + 0.1)
 		end
 
-		-- // Localized Specular Glass Fracture Shards cracking along center window edges
 		local glassShards = {}
 		local shardCount = 18
 		for i = 1, shardCount do
@@ -1655,20 +1672,17 @@ do
 			Debris:AddItem(s, duration + 0.2)
 		end
 
-		-- // Window Stroke / Border Strobing
 		local mainFrame = windowFrame:FindFirstChild("Main", true)
 		local windowStroke = mainFrame and mainFrame:FindFirstChildWhichIsA("UIStroke")
 
 		while os.clock() < endTime do
 			if not windowFrame or not windowFrame.Parent then break end
 
-			-- // Crisp in-place digital jitter (STRICTLY NO ROTATION TO PREVENT UNCLIPPING)
 			local jx = math.random(-6, 6)
 			local jy = math.random(-3, 3)
 			windowFrame.Position = UDim2.new(origPos.X.Scale, origPos.X.Offset + jx, origPos.Y.Scale, origPos.Y.Offset + jy)
 			windowFrame.Rotation = 0
 
-			-- // Jitter Ghost Frames tightly
 			if cyanGhost and cyanGhost.Parent then
 				cyanGhost.Position = UDim2.new(0, absPos.X + jx - math.random(6, 12), 0, absPos.Y + jy + math.random(-2, 2))
 				cyanGhost.BackgroundTransparency = math.random(30, 60) / 100
@@ -1682,7 +1696,6 @@ do
 				blackGhost.BackgroundTransparency = math.random(15, 45) / 100
 			end
 
-			-- // Scramble ALL texts on window into 00101010101 and binary strings!
 			for _, tData in ipairs(trackedTexts) do
 				if tData.inst and tData.inst.Parent then
 					local tmpl = BINARY_TEMPLATES[math.random(1, #BINARY_TEMPLATES)]
@@ -1696,7 +1709,6 @@ do
 				end
 			end
 
-			-- // Randomize Scanlines & Missing VRAM Bars across center window
 			for _, sl in ipairs(slicePool) do
 				if sl and sl.Parent then
 					if math.random(1, 10) > 3 then
@@ -1717,7 +1729,6 @@ do
 				end
 			end
 
-			-- // Randomize Floating Error Code Overlays (00101010101) across center window
 			for _, lbl in ipairs(errorLabels) do
 				if lbl and lbl.Parent then
 					if math.random(1, 10) > 3 then
@@ -1736,7 +1747,6 @@ do
 				end
 			end
 
-			-- // Glass fracture shards subtle jitter around window perimeter
 			for _, s in ipairs(glassShards) do
 				if s and s.Parent then
 					local sx = s.Position.X.Offset + math.random(-2, 2)
@@ -1745,7 +1755,6 @@ do
 				end
 			end
 
-			-- // Strobe window stroke border between Biru Muda and Biru Tua
 			if windowStroke and windowStroke.Parent then
 				windowStroke.Color = (math.random(1, 2) == 1) and COLOR_LIGHT_BLUE or COLOR_DARK_BLUE
 				windowStroke.Transparency = math.random(20, 70) / 100
@@ -1754,7 +1763,6 @@ do
 			task.wait(0.025)
 		end
 
-		-- // Clean up slices, labels, ghosts
 		for _, sl in ipairs(slicePool) do
 			if sl and sl.Parent then sl:Destroy() end
 		end
@@ -1765,7 +1773,6 @@ do
 		if darkBlueGhost and darkBlueGhost.Parent then darkBlueGhost:Destroy() end
 		if blackGhost and blackGhost.Parent then blackGhost:Destroy() end
 
-		-- // Dissolve glass fracture shards cleanly
 		for _, s in ipairs(glassShards) do
 			if s and s.Parent then
 				TweenService:Create(s, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -1776,19 +1783,16 @@ do
 			end
 		end
 
-		-- // Restore window frame pristine position and rotation (0)
 		if windowFrame and windowFrame.Parent then
 			windowFrame.Position = origPos
 			windowFrame.Rotation = 0
 		end
 
-		-- // Restore window stroke
 		if windowStroke and windowStroke.Parent then
 			windowStroke.Color = Color3.fromRGB(255, 255, 255)
 			windowStroke.Transparency = 0.92
 		end
 
-		-- // Always decode all texts back to original pristine state
 		for _, tData in ipairs(trackedTexts) do
 			if tData.inst and tData.inst.Parent then
 				tData.inst.Text = tData.origText
@@ -2068,7 +2072,7 @@ do
 		end
 	end
 
-	function GlassLifecycle.runWindowInward(fxHolder, windowFrame, chloeex)
+	function GlassLifecycle.runWindowInward(fxHolder, windowFrame, chloeex, onComplete)
 		windowFrame.Visible = false
 		local absPos = windowFrame.AbsolutePosition
 		local absSize = windowFrame.AbsoluteSize
@@ -2077,7 +2081,6 @@ do
 		local centerX = (absSize.X > 10) and (absPos.X + absSize.X / 2) or (screenW / 2)
 		local centerY = (absSize.Y > 10) and (absPos.Y + absSize.Y / 2) or (screenH / 2)
 
-		-- // Focus glass shards tightly around center window
 		local shardCount = 36
 		local activeShards = {}
 
@@ -2116,17 +2119,25 @@ do
 
 		windowFrame.Visible = true
 		GlassLifecycle.playWindowGlitch(fxHolder, windowFrame, 0.38)
+		if onComplete then
+			onComplete()
+		end
 	end
 
-	function GlassLifecycle.runGlassOutward(fxHolder, windowFrame, onComplete)
-		GlassLifecycle.playWindowGlitch(fxHolder, windowFrame, 0.35, true)
+	function GlassLifecycle.spawnOutwardShards(fxHolder, windowFrame, shardCount, onComplete)
+		if not windowFrame then
+			if onComplete then onComplete() end
+			return
+		end
 
 		local absPos = windowFrame.AbsolutePosition
 		local absSize = windowFrame.AbsoluteSize
+		if absSize.X <= 10 or absSize.Y <= 10 then
+			absSize = Vector2.new(577, 436)
+			absPos = Vector2.new(100, 100)
+		end
 
-		windowFrame.Visible = false
-
-		local shardCount = 60
+		shardCount = shardCount or 60
 		local activeShards = {}
 
 		for i = 1, shardCount do
@@ -2156,20 +2167,27 @@ do
 			tw:Play()
 		end
 
-		task.wait(0.72)
+		task.delay(0.72, function()
+			for _, s in ipairs(activeShards) do
+				if s and s.Parent then s:Destroy() end
+			end
+			if onComplete then
+				onComplete()
+			end
+		end)
+	end
 
-		for _, s in ipairs(activeShards) do
-			if s and s.Parent then s:Destroy() end
+	function GlassLifecycle.runGlassOutward(fxHolder, windowFrame, onComplete)
+		GlassLifecycle.playWindowGlitch(fxHolder, windowFrame, 0.35, true)
+		if windowFrame and windowFrame.Parent then
+			windowFrame.Visible = false
 		end
-
-		if onComplete then
-			onComplete()
-		end
+		GlassLifecycle.spawnOutwardShards(fxHolder, windowFrame, 60, onComplete)
 	end
 end
 
 function Chloex:Window(guiconfig)
-	-- // Native Single-Execution Guard: Max 1x instance allowed, subsequent executions are invalid
+
 	local isAlive = false
 	local CoreGui = game:GetService("CoreGui")
 	local hui = (gethui and gethui()) or CoreGui
@@ -2212,7 +2230,6 @@ function Chloex:Window(guiconfig)
 			warn("[Chloe X] Execution Invalid: Max 1x instance allowed. Script is already active.")
 		end
 
-		-- // Immediately stop caller thread cleanly so subsequent elements and notifications NEVER run
 		coroutine.yield()
 		return nil
 	end
@@ -2243,14 +2260,13 @@ function Chloex:Window(guiconfig)
 	guiconfig.LoadingScreen = (guiconfig.LoadingScreen ~= false)
 	guiconfig.GlassIntro = (guiconfig.GlassIntro ~= false)
 	guiconfig.GlassOutro = (guiconfig.GlassOutro ~= false)
-	guiconfig.MiniUI = (guiconfig.MiniUI == true)
-	guiconfig.ToggleUIStyle = guiconfig.ToggleUIStyle or (guiconfig.MiniUI and "Overlay" or "Square")
+	guiconfig.MiniUI = (guiconfig.MiniUI ~= false)
+	guiconfig.ToggleUIStyle = guiconfig.ToggleUIStyle or "Overlay"
 	local toggleUIStyle = guiconfig.ToggleUIStyle
 	guiconfig.PerformanceMode = (guiconfig.PerformanceMode ~= nil) and (guiconfig.PerformanceMode == true) or isMobile
 	local windowBuildStartTime = 0
 	local frameBudget = (guiconfig.PerformanceMode == true) and 0.008 or 0.012
 
-	-- // Centralized Window Layout Throttle
 	local function yieldbuild()
 		if windowBuildStartTime == 0 then
 			windowBuildStartTime = os.clock()
@@ -2261,7 +2277,6 @@ function Chloex:Window(guiconfig)
 		end
 	end
 
-	-- // Centralized Game Support Resolver (GameId matching)
 	guiconfig.Game = guiconfig.Game or guiconfig.GameSupport or DEFAULT_CONFIG.GameSupport
 	guiconfig.Logs = guiconfig.Logs or guiconfig.UpdateLogs or DEFAULT_CONFIG.Changelogs
 	guiconfig.Advanced = (guiconfig.Advanced == false and false) or (type(guiconfig.Advanced) == "string" and guiconfig.Advanced) or DEFAULT_CONFIG.Advanced
@@ -2353,7 +2368,7 @@ function Chloex:Window(guiconfig)
 	local guifunc = {}
 	local windowStartTime = os.time()
 	guifunc.StartTime = windowStartTime
-	-- // Purge lingering Chloe X guis to prevent duplicate cards or windows
+
 	local function purgeLingeringGuis(p)
 		if p then
 			for _, child in ipairs(p:GetChildren()) do
@@ -2397,7 +2412,6 @@ function Chloex:Window(guiconfig)
 		end)
 	end
 
-	-- // Mini UI & Keybind state
 	local miniHolder = nil
 	local miniScroll = nil
 	local isMiniUIEnabled = (guiconfig.MiniUI == true)
@@ -2409,6 +2423,8 @@ function Chloex:Window(guiconfig)
 	local setToggleUIStyle = nil
 	local updateToggleUIVisibility = nil
 	local updateCardPosition = nil
+	local toggleMainWindow = nil
+	local toggleMiniWindow = nil
 	local isCardDragging = false
 	local mainToggleKey = Enum.KeyCode.F3
 	local miniToggleKey = Enum.KeyCode.F4
@@ -2420,7 +2436,6 @@ function Chloex:Window(guiconfig)
 	local queueMiniRefresh = nil
 	local miniSearchInput = nil
 
-		-- // Native Window Lifecycle Controller
 	local lifecycle = {
         enableLoading = (guiconfig.LoadingScreen ~= false),
         enableGlassIntro = (guiconfig.GlassIntro ~= false),
@@ -2446,6 +2461,16 @@ function Chloex:Window(guiconfig)
 					lifecycle.visConn = dropshadowholder:GetPropertyChangedSignal("Visible"):Connect(function()
 						if lifecycle.isLoadingActive and dropshadowholder.Visible == true then
 							dropshadowholder.Visible = false
+						end
+					end)
+				end
+			end
+			if miniHolder then
+				miniHolder.Visible = false
+				if not lifecycle.miniVisConn then
+					lifecycle.miniVisConn = miniHolder:GetPropertyChangedSignal("Visible"):Connect(function()
+						if lifecycle.isLoadingActive and miniHolder.Visible == true then
+							miniHolder.Visible = false
 						end
 					end)
 				end
@@ -2488,6 +2513,14 @@ function Chloex:Window(guiconfig)
 					lifecycle.visConn:Disconnect()
 					lifecycle.visConn = nil
 				end
+				if lifecycle.miniVisConn then
+					lifecycle.miniVisConn:Disconnect()
+					lifecycle.miniVisConn = nil
+				end
+
+				if toggleScreenGui and toggleScreenGui.Parent then
+					toggleScreenGui.Enabled = true
+				end
 
 				if dropshadowholder and dropshadowholder.Parent then
 					GlassLifecycle.runWindowInward(lifecycle.fxHolder, dropshadowholder, chloeex)
@@ -2495,14 +2528,21 @@ function Chloex:Window(guiconfig)
 			end)
 		elseif lifecycle.enableGlassIntro then
 			if dropshadowholder then dropshadowholder.Visible = false end
+			if miniHolder then miniHolder.Visible = false end
 			task.spawn(function()
 				task.wait(0.05)
+				if toggleScreenGui and toggleScreenGui.Parent then
+					toggleScreenGui.Enabled = true
+				end
 				if dropshadowholder and dropshadowholder.Parent then
 					GlassLifecycle.runWindowInward(lifecycle.fxHolder, dropshadowholder, chloeex)
 				end
 			end)
 		else
 			dropshadowholder.Visible = true
+			if toggleScreenGui and toggleScreenGui.Parent then
+				toggleScreenGui.Enabled = true
+			end
 		end
 	end
 
@@ -2674,7 +2714,6 @@ function Chloex:Window(guiconfig)
 	bannerButton.ZIndex = 25
 	bannerButton.AutoButtonColor = false
 
-	-- // Dedicated Swap Button targeting strictly the swapIcon hit area (not the title card)
 	local swapButton = instance.textbutton(sidebarBanner)
 	swapButton.Name = "SwapButton"
 	swapButton.Text = ""
@@ -2686,14 +2725,13 @@ function Chloex:Window(guiconfig)
 		swapButton.Size = UDim2.new(1, 0, 1, 0)
 		swapButton.ZIndex = 30
 	else
-		-- // Focused strictly on the swapIcon area (24x24 px at bottom right corner)
+
 		swapButton.AnchorPoint = Vector2.new(1, 1)
 		swapButton.Position = UDim2.new(1, 2, 1, 7)
 		swapButton.Size = UDim2.new(0, 24, 0, 24)
 		swapButton.ZIndex = 30
 	end
 
-	-- // Hover feedback strictly on the swap icon
 	swapButton.MouseEnter:Connect(function()
 		if guiconfig.Type == 3 then
 			if sidebarTooltip then
@@ -2731,7 +2769,6 @@ function Chloex:Window(guiconfig)
 		end
 	end)
 
-	-- // 1x Instant Click Trigger (Strictly on the Swap Icon, No Animation)
 	swapButton.Activated:Connect(function()
 		if sidebarTooltip then
 			sidebarTooltip.Visible = false
@@ -3026,7 +3063,6 @@ function Chloex:Window(guiconfig)
 	layersfolder.BorderSizePixel = 0
 	layersfolder.Size = UDim2.new(1, 0, 1, 0)
 
-	-- // Pure Lua Tab Switcher Controller (Bypasses Roblox UIPageLayout to prevent Escape/CoreGui navigation bugs)
 	local activeCurrentPage = nil
 	local pageEnterCallbacks = {}
 	local layerspagelayout = {
@@ -3258,7 +3294,6 @@ function Chloex:Window(guiconfig)
 		sv.ts:Create(userBtn, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
 		sv.ts:Create(btnStroke, TweenInfo.new(0.15), { Transparency = 1 }):Play()
 	end)
-
 
 	local useroptions = {
 		ShowStatistic = false,
@@ -3603,6 +3638,10 @@ function Chloex:Window(guiconfig)
 		if isDestroyingGui then return end
 		isDestroyingGui = true
 
+		if config and config.reset then
+			pcall(function() config:reset(true) end)
+		end
+
 		local function finalizeDestroy()
 			disconnectAll()
 		for key, timer in pairs(resizeDebounceTable) do
@@ -3682,15 +3721,87 @@ function Chloex:Window(guiconfig)
 		getgenv().ChloeX_Instance = nil
 		getgenv().ChloeX_Running = nil
 		getgenv().ChloeX_ScreenGui = nil
+		getgenv().ChloeX_Window = nil
 		getgenv().ChloeX_Tabs = nil
 		getgenv().ChloeX_ReopenPrompt = nil
 		end
 
-		if lifecycle.enableGlassOutro and dropshadowholder and dropshadowholder.Parent and dropshadowholder.Visible then
+		local isMainOpen = (dropshadowholder and dropshadowholder.Parent and dropshadowholder.Visible == true)
+		local isMiniOpen = (miniHolder and miniHolder.Parent and miniHolder.Visible == true)
+
+		if lifecycle.enableGlassOutro and (isMainOpen or isMiniOpen) then
 			task.spawn(function()
-				GlassLifecycle.runGlassOutward(lifecycle.fxHolder, dropshadowholder, function()
+				local glitchDuration = 0.28
+				local glitchThreads = 0
+				local glitchDone = false
+				local function onGlitchComplete()
+					glitchThreads = glitchThreads - 1
+					if glitchThreads <= 0 then
+						glitchDone = true
+					end
+				end
+
+				if isMainOpen then
+					glitchThreads = glitchThreads + 1
+					task.spawn(function()
+						pcall(function()
+							GlassLifecycle.playWindowGlitch(lifecycle.fxHolder, dropshadowholder, glitchDuration, true)
+						end)
+						onGlitchComplete()
+					end)
+				end
+
+				if isMiniOpen then
+					glitchThreads = glitchThreads + 1
+					task.spawn(function()
+						pcall(function()
+							GlassLifecycle.playWindowGlitch(lifecycle.fxHolder, miniHolder, glitchDuration, true)
+						end)
+						onGlitchComplete()
+					end)
+				end
+
+				local maxWait = os.clock() + glitchDuration + 0.1
+				while not glitchDone and os.clock() < maxWait do
+					task.wait(0.015)
+				end
+
+				if isMainOpen and dropshadowholder and dropshadowholder.Parent then
+					dropshadowholder.Visible = false
+				end
+				if isMiniOpen and miniHolder and miniHolder.Parent then
+					miniHolder.Visible = false
+				end
+
+				local shardsPending = 0
+				local function onShardsDone()
+					shardsPending = shardsPending - 1
+					if shardsPending <= 0 then
+						finalizeDestroy()
+					end
+				end
+
+				if isMainOpen and dropshadowholder and dropshadowholder.Parent then
+					shardsPending = shardsPending + 1
+					task.spawn(function()
+						pcall(function()
+							GlassLifecycle.spawnOutwardShards(lifecycle.fxHolder, dropshadowholder, 60, onShardsDone)
+						end)
+					end)
+				end
+
+				if isMiniOpen and miniHolder and miniHolder.Parent then
+					shardsPending = shardsPending + 1
+					task.spawn(function()
+						pcall(function()
+							GlassLifecycle.spawnOutwardShards(lifecycle.fxHolder, miniHolder, 35, onShardsDone)
+						end)
+					end)
+				end
+
+				if shardsPending == 0 then
 					finalizeDestroy()
-				end)
+				end
 			end)
 		else
 			finalizeDestroy()
@@ -3841,7 +3952,12 @@ function Chloex:Window(guiconfig)
 			sv.ts:Create(cancelStroke, TweenInfo.new(0.15), { Transparency = 0.88 }):Play()
 		end)
 
+		local isPromptHandled = false
 		local function confirmClose()
+			if isPromptHandled then
+				return
+			end
+			isPromptHandled = true
 			if overlay and overlay.Parent then
 				pcall(function() overlay:Destroy() end)
 			end
@@ -3852,6 +3968,10 @@ function Chloex:Window(guiconfig)
 		yes.MouseButton1Click:Connect(confirmClose)
 
 		local function cancelClose()
+			if isPromptHandled then
+				return
+			end
+			isPromptHandled = true
 			sv.ts:Create(overlay, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
 			sv.ts:Create(dialog, TweenInfo.new(0.15), { ImageTransparency = 1, BackgroundTransparency = 1 }):Play()
 			sv.ts:Create(dialogglow, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
@@ -3877,13 +3997,16 @@ function Chloex:Window(guiconfig)
 	userBtn.MouseButton1Click:Connect(showClosePrompt)
 
 	min.Activated:Connect(function()
-		dropshadowholder.Visible = false
+		if toggleMainWindow then
+			toggleMainWindow(false)
+		elseif dropshadowholder then
+			dropshadowholder.Visible = false
+		end
 	end)
 
 	close.Activated:Connect(showClosePrompt)
 	close.MouseButton1Click:Connect(showClosePrompt)
 
-	-- // Mini UI Floating HUD Card
 	local miniWidth = isMobile and 190 or 220
 	local miniHeight = dropshadowholder.AbsoluteSize.Y > 50 and dropshadowholder.AbsoluteSize.Y or (isMobile and 270 or 436)
 	local mainIconButton = nil
@@ -3897,7 +4020,16 @@ function Chloex:Window(guiconfig)
 	miniHolder.BackgroundTransparency = 0.08
 	miniHolder.BorderSizePixel = 0
 	miniHolder.ZIndex = 60
-	miniHolder.Visible = isMiniUIEnabled
+	miniHolder.Visible = false
+	if lifecycle.enableLoading then
+		if not lifecycle.miniVisConn then
+			lifecycle.miniVisConn = miniHolder:GetPropertyChangedSignal("Visible"):Connect(function()
+				if lifecycle.isLoadingActive and miniHolder.Visible == true then
+					miniHolder.Visible = false
+				end
+			end)
+		end
+	end
 
 	instance.uicorner(miniHolder).CornerRadius = UDim.new(0, 8)
 
@@ -3935,7 +4067,11 @@ function Chloex:Window(guiconfig)
 	miniClose.Position = UDim2.new(1, -6, 0.5, 0)
 	miniClose.Size = UDim2.new(0, 20, 0, 20)
 	miniClose.Activated:Connect(function()
-		miniHolder.Visible = false
+		if toggleMiniWindow then
+			toggleMiniWindow(false)
+		else
+			miniHolder.Visible = false
+		end
 	end)
 
 	local miniMin = instance.textbutton(miniTop)
@@ -3949,9 +4085,12 @@ function Chloex:Window(guiconfig)
 	miniMin.Position = UDim2.new(1, -26, 0.5, 0)
 	miniMin.Size = UDim2.new(0, 20, 0, 20)
 	miniMin.Activated:Connect(function()
-		miniHolder.Visible = false
+		if toggleMiniWindow then
+			toggleMiniWindow(false)
+		else
+			miniHolder.Visible = false
+		end
 	end)
-
 
 	local miniSep = instance.frame(miniHolder)
 	miniSep.Name = "MiniSeparator"
@@ -3961,7 +4100,6 @@ function Chloex:Window(guiconfig)
 	miniSep.BackgroundTransparency = 0.9
 	miniSep.BorderSizePixel = 0
 
-	-- // Search Bar in Mini UI
 	local miniSearchFrame = instance.frame(miniHolder)
 	miniSearchFrame.Name = "MiniSearchFrame"
 	miniSearchFrame.Position = UDim2.new(0, 8, 0, 38)
@@ -4074,6 +4212,7 @@ function Chloex:Window(guiconfig)
 		local query = string.lower(miniSearchInput.Text or "")
 		local hasQuery = (query ~= "")
 		local visibleCount = 0
+		local totalEligibleCount = 0
 
 		if miniSearchClear then
 			miniSearchClear.Visible = hasQuery
@@ -4089,40 +4228,54 @@ function Chloex:Window(guiconfig)
 					end
 				end
 
-				local shouldShow = false
+				local eligible = false
 				if hasQuery then
-					shouldShow = matchesSearch
+					eligible = matchesSearch
 				else
 					local active = false
 					pcall(function()
 						active = item.IsActive()
 					end)
-					shouldShow = active or (item.IsPinned == true)
+					eligible = active or (item.IsPinned == true)
+				end
+
+				if eligible then
+					totalEligibleCount = totalEligibleCount + 1
+				end
+
+				local secObj = item.Section
+				local isSecOpen = (secObj == nil) or (secObj.IsOpen ~= false)
+				local shouldShow = eligible
+				if not hasQuery and not isSecOpen then
+					shouldShow = false
 				end
 
 				item.Row.Visible = shouldShow
+				item.Eligible = eligible
 				if shouldShow then
 					visibleCount = visibleCount + 1
 				end
 			end
 		end
 
-		-- // Update Mini UI section headers visibility
 		for _, sec in ipairs(miniSections) do
 			if sec.Header and sec.Header.Parent then
-				local secHasVisible = false
+				local secHasEligible = false
 				for _, item in ipairs(sec.Items) do
-					if item.Row and item.Row.Parent and item.Row.Visible then
-						secHasVisible = true
+					if item.Eligible then
+						secHasEligible = true
 						break
 					end
 				end
-				sec.Header.Visible = secHasVisible
+				sec.Header.Visible = secHasEligible
+				if sec.Arrow then
+					sec.Arrow.Rotation = (sec.IsOpen ~= false) and 0 or -90
+				end
 			end
 		end
 
 		if miniEmptyState then
-			miniEmptyState.Visible = (visibleCount == 0)
+			miniEmptyState.Visible = hasQuery and (visibleCount == 0) or (totalEligibleCount == 0)
 			if hasQuery then
 				miniEmptyLabel.Text = "No modules match \"" .. query .. "\""
 			else
@@ -4147,7 +4300,6 @@ function Chloex:Window(guiconfig)
 		end)
 	end
 
-	-- // Mini UI Resizing Grip
 	local isMiniResizing = false
 	local miniResizeStart = nil
 	local miniStartSize = nil
@@ -4258,35 +4410,30 @@ function Chloex:Window(guiconfig)
 		end), "miniHolder.dragEnd")
 	end
 
-	-- // Docking & Swap-to-Center Animation (Height always syncs with main script window)
-	updateMiniPosition = function(animate, force)
+	updateMiniPosition = function(animate, force, isMiniTargetVisible)
 		if not miniHolder or not miniHolder.Parent then return end
 		if not autoDockMini then return end
 		if not force and (isMiniDragging or isMiniResizing) then return end
 
 		local isMainOpen = dropshadowholder and dropshadowholder.Visible
-		local targetUDim2
 		local curW = miniWidth
-		local mainSize = dropshadowholder.AbsoluteSize
-		local screenW = chloeex.AbsoluteSize.X
+		local mainSize = dropshadowholder and dropshadowholder.AbsoluteSize or Vector2.new(580, 420)
+		local screenW = (chloeex and chloeex.AbsoluteSize.X > 50) and chloeex.AbsoluteSize.X or 1280
 		local gap = 12
 
-		-- // Height always matches main script window exactly when expanded
 		if mainSize.Y > 50 then
 			miniHeight = mainSize.Y
 			miniHolder.Size = UDim2.new(0, miniWidth, 0, miniHeight)
 		end
-		local curH = miniHeight
 
-		if isMainOpen and miniHolder.Visible then
-			local mainPos = dropshadowholder.AbsolutePosition
+		local miniVis = (isMiniTargetVisible ~= nil) and isMiniTargetVisible or (miniHolder.Visible == true)
+
+		if isMainOpen and miniVis then
 			local totalW = mainSize.X + gap + curW
 			local fitsOnScreen = (totalW <= screenW - 16)
-			local fitsOnRight = (mainPos.X + mainSize.X + gap + curW <= screenW - 8)
 
-			if not hasInitializedLayout and fitsOnScreen and (isMobile or not fitsOnRight) and not draggable.dragging then
-				hasInitializedLayout = true
-				-- // Symmetrically center Main UI and Mini UI together so neither hits the screen edges
+			if fitsOnScreen and not (draggable and draggable.hasUserMoved) then
+
 				local groupMargin = math.max(8, math.floor((screenW - totalW) / 2))
 				local mainTargetX = groupMargin + math.floor(mainSize.X / 2)
 				local miniTargetX = groupMargin + mainSize.X + gap + math.floor(curW / 2)
@@ -4299,9 +4446,7 @@ function Chloex:Window(guiconfig)
 					sv.ts:Create(dropshadowholder, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
 						Position = mainTargetUDim2
 					}):Play()
-					sv.ts:Create(miniHolder, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-						Position = miniTargetUDim2
-					}):Play()
+					miniHolder.Position = miniTargetUDim2
 				else
 					dropshadowholder.Position = mainTargetUDim2
 					miniHolder.Position = miniTargetUDim2
@@ -4311,28 +4456,56 @@ function Chloex:Window(guiconfig)
 				end
 				return
 			else
-				local rightX = mainPos.X + mainSize.X + gap + (curW / 2)
-				if (rightX + (curW / 2)) > (screenW - 8) then
-					rightX = mainPos.X - gap - (curW / 2)
+
+				local mainPos = dropshadowholder.AbsolutePosition
+				local rightX = mainPos.X + mainSize.X + gap + math.floor(curW / 2)
+				if (rightX + math.floor(curW / 2)) > (screenW - 8) then
+					rightX = mainPos.X - gap - math.floor(curW / 2)
 				end
-				rightX = math.clamp(rightX, (curW / 2) + 8, math.max(screenW - (curW / 2) - 8, (curW / 2) + 8))
+				rightX = math.clamp(rightX, math.floor(curW / 2) + 8, math.max(screenW - math.floor(curW / 2) - 8, math.floor(curW / 2) + 8))
 
-				targetUDim2 = UDim2.new(0, rightX, dropshadowholder.Position.Y.Scale, dropshadowholder.Position.Y.Offset)
+				local targetUDim2 = UDim2.new(0, rightX, dropshadowholder.Position.Y.Scale, dropshadowholder.Position.Y.Offset)
+				if animate then
+					sv.ts:Create(miniHolder, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+						Position = targetUDim2
+					}):Play()
+				else
+					miniHolder.Position = targetUDim2
+				end
+				if updateCardPosition and not isCardDragging then
+					updateCardPosition(animate)
+				end
 			end
-		else
-			local yOffset = isMobile and 30 or 0
-			targetUDim2 = UDim2.new(0.5, 0, 0.5, yOffset)
-		end
+		elseif isMainOpen and not miniVis then
 
-		if animate then
-			sv.ts:Create(miniHolder, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-				Position = targetUDim2
-			}):Play()
-		else
-			miniHolder.Position = targetUDim2
-		end
-		if updateCardPosition and not isCardDragging then
-			updateCardPosition(animate)
+			if not (draggable and draggable.hasUserMoved) and not (draggable and draggable.dragging) then
+				local yOffset = isMobile and 30 or 0
+				local centerUDim2 = UDim2.new(0.5, 0, 0.5, yOffset)
+				if animate then
+					sv.ts:Create(dropshadowholder, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+						Position = centerUDim2
+					}):Play()
+				else
+					dropshadowholder.Position = centerUDim2
+				end
+				if updateCardPosition and not isCardDragging then
+					updateCardPosition(animate, centerUDim2)
+				end
+			end
+		elseif not isMainOpen and miniVis then
+
+			local yOffset = isMobile and 30 or 0
+			local centerUDim2 = UDim2.new(0.5, 0, 0.5, yOffset)
+			if animate then
+				sv.ts:Create(miniHolder, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+					Position = centerUDim2
+				}):Play()
+			else
+				miniHolder.Position = centerUDim2
+			end
+			if updateCardPosition and not isCardDragging then
+				updateCardPosition(animate)
+			end
 		end
 	end
 
@@ -4341,18 +4514,9 @@ function Chloex:Window(guiconfig)
 			updateToggleUIVisibility()
 		end
 		if not miniHolder.Visible then
-			if not hasInitializedLayout and dropshadowholder and dropshadowholder.Visible and not draggable.dragging then
-				local yOffset = isMobile and 30 or 0
-				local centerUDim2 = UDim2.new(0.5, 0, 0.5, yOffset)
-				sv.ts:Create(dropshadowholder, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-					Position = centerUDim2
-				}):Play()
-				if updateCardPosition and not isCardDragging then
-					updateCardPosition(true, centerUDim2)
-				end
-			end
+			updateMiniPosition(true, false, false)
 		else
-			updateMiniPosition(true)
+			updateMiniPosition(true, false, true)
 		end
 	end), "miniHolder.onVisibleChanged")
 
@@ -4388,11 +4552,11 @@ function Chloex:Window(guiconfig)
 		updateMiniPosition(false)
 	end)
 
-	-- // Centralized Window Toggle with Fatal Corrupted Glitch Animation
 	local isTogglingWindow = false
-	local function toggleMainWindow(overrideState)
+	toggleMainWindow = function(overrideState)
 		if not dropshadowholder or not dropshadowholder.Parent then return end
-		if isTogglingWindow then return end
+		if isTogglingWindow or isDestroyingGui then return end
+		if lifecycle and lifecycle.isLoadingActive then return end
 
 		local targetVisible = (overrideState ~= nil) and overrideState or (not dropshadowholder.Visible)
 		if targetVisible == dropshadowholder.Visible then return end
@@ -4421,7 +4585,59 @@ function Chloex:Window(guiconfig)
 		end
 	end
 
-	-- // Global Keybind Listener (Main UI: F3, Mini UI: F4)
+	local isTogglingMiniWindow = false
+	toggleMiniWindow = function(overrideState)
+		if not miniHolder or not miniHolder.Parent then return end
+		if isTogglingMiniWindow or isDestroyingGui then return end
+		if lifecycle and lifecycle.isLoadingActive then return end
+
+		local targetVisible = (overrideState ~= nil) and overrideState or (not miniHolder.Visible)
+		if targetVisible == miniHolder.Visible then return end
+
+		if targetVisible then
+
+			miniHolder.Visible = true
+
+			if autoDockMini and updateMiniPosition then
+				updateMiniPosition(true, false, true)
+			end
+
+			if lifecycle and lifecycle.fxHolder and GlassLifecycle and GlassLifecycle.playWindowGlitch then
+				isTogglingMiniWindow = true
+				task.spawn(function()
+					pcall(function()
+						GlassLifecycle.playWindowGlitch(lifecycle.fxHolder, miniHolder, 0.25, false)
+					end)
+					isTogglingMiniWindow = false
+				end)
+			end
+		else
+
+			if lifecycle and lifecycle.fxHolder and GlassLifecycle and GlassLifecycle.playWindowGlitch then
+				isTogglingMiniWindow = true
+				task.spawn(function()
+					pcall(function()
+						GlassLifecycle.playWindowGlitch(lifecycle.fxHolder, miniHolder, 0.22, true)
+					end)
+					miniHolder.Visible = false
+					isTogglingMiniWindow = false
+					if autoDockMini and updateMiniPosition then
+						updateMiniPosition(true, false, false)
+					end
+				end)
+			else
+				miniHolder.Visible = false
+				if autoDockMini and updateMiniPosition then
+					updateMiniPosition(true, false, false)
+				end
+			end
+		end
+
+		if updateAllBtnVisuals then
+			updateAllBtnVisuals()
+		end
+	end
+
 	trackConnection(sv.uis.InputBegan:Connect(function(input, gpe)
 		if gpe or isKeybindListening then
 			return
@@ -4430,12 +4646,11 @@ function Chloex:Window(guiconfig)
 			toggleMainWindow()
 		elseif input.KeyCode == miniToggleKey then
 			if isMiniUIEnabled and miniHolder then
-				miniHolder.Visible = not miniHolder.Visible
+				toggleMiniWindow()
 			end
 		end
 	end), "window.globalKeybinds")
 
-	-- // ToggleUI Button (Classic Square Icon - hanya muncul ketika tidak memakai Mini UI, persis seperti PC)
 	function guifunc:ToggleUI(overrideState)
 		if toggleScreenGui and toggleScreenGui.Parent then
 			if overrideState ~= nil then
@@ -4461,8 +4676,8 @@ function Chloex:Window(guiconfig)
 		toggleScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 		toggleScreenGui.ResetOnSpawn = false
 		toggleScreenGui.DisplayOrder = 9999
+		toggleScreenGui.Enabled = true
 
-		-- // Card Overlay Widget (Compact size khusus Mobile, Normal size di PC)
 		local cardWidth = isMobile and 172 or 205
 		local cardHeight = isMobile and 66 or 82
 		local card = instance.frame(toggleScreenGui)
@@ -4480,7 +4695,6 @@ function Chloex:Window(guiconfig)
 		local cardCorner = instance.uicorner(card)
 		cardCorner.CornerRadius = UDim.new(0, isMobile and 6 or 8)
 
-		-- // Header: Icon & Brand Label
 		local iconSize = isMobile and 13 or 16
 		local icon = instance.imagelabel(card)
 		icon.Name = "CardIcon"
@@ -4503,7 +4717,6 @@ function Chloex:Window(guiconfig)
 		brandLabel.TextXAlignment = Enum.TextXAlignment.Left
 		brandLabel.BackgroundTransparency = 1
 
-		-- // Body Stats: Server Uptime & Script Uptime
 		local serverUptimeLabel = instance.textlabel(card)
 		serverUptimeLabel.Name = "ServerUptimeLabel"
 		serverUptimeLabel.Size = UDim2.new(1, isMobile and -12 or -16, 0, isMobile and 11 or 13)
@@ -4528,7 +4741,6 @@ function Chloex:Window(guiconfig)
 		scriptUptimeLabel.BackgroundTransparency = 1
 		scriptUptimeLabel.Text = "Script Uptime: 0D 0H 0M"
 
-		-- // Button 1: Open / Close Main UI
 		local btnW = isMobile and 77 or 91
 		local btnH = isMobile and 19 or 22
 		local btnY = isMobile and 43 or 53
@@ -4557,7 +4769,6 @@ function Chloex:Window(guiconfig)
 		btnMainStroke.Thickness = 1
 		btnMainStroke.Transparency = 0.88
 
-		-- // Button 2: Open / Close Mini UI
 		local btnMini = instance.textbutton(card)
 		btnMini.Name = "BtnMiniUI"
 		btnMini.Size = UDim2.new(0, btnW, 0, btnH)
@@ -4581,7 +4792,6 @@ function Chloex:Window(guiconfig)
 		btnMiniStroke.Thickness = 1
 		btnMiniStroke.Transparency = 0.88
 
-		-- // Format uptime helper
 		local function formatUptime(sec)
 			sec = math.max(0, math.floor(sec))
 			local d = math.floor(sec / 86400)
@@ -4633,7 +4843,9 @@ function Chloex:Window(guiconfig)
 		end)
 
 		btnMini.MouseButton1Click:Connect(function()
-			if miniHolder then
+			if toggleMiniWindow then
+				toggleMiniWindow()
+			elseif miniHolder then
 				miniHolder.Visible = not miniHolder.Visible
 				updateMiniBtnVisual()
 			end
@@ -4650,7 +4862,6 @@ function Chloex:Window(guiconfig)
 
 		local hasUserMovedCard = false
 
-		-- // Docking Card: Tepat diatas Main UI (kecuali user sudah menggeser Card secara manual)
 		updateCardPosition = function(animate, overrideMainPos)
 			if not card or not card.Parent or not card.Visible then return end
 			if isCardDragging then return end
@@ -4664,11 +4875,10 @@ function Chloex:Window(guiconfig)
 				local mainH = dropshadowholder.AbsoluteSize.Y > 50 and dropshadowholder.AbsoluteSize.Y or (isMobile and 270 or 436)
 				local cardH = card.AbsoluteSize.Y > 20 and card.AbsoluteSize.Y or (isMobile and 66 or 82)
 
-				-- // X selaras dengan Main UI, Y tepat di atas tepi atas Main UI
 				local targetYOffset = mainPos.Y.Offset - math.floor(mainH / 2) - cardH - gap
 				targetUDim2 = UDim2.new(mainPos.X.Scale, mainPos.X.Offset, mainPos.Y.Scale, targetYOffset)
 			else
-				-- // Saat Main UI tertutup, Card berada di posisi idle center atas layar
+
 				targetUDim2 = UDim2.new(0.5, 0, 0, 10)
 			end
 
@@ -4683,7 +4893,6 @@ function Chloex:Window(guiconfig)
 
 		updateCardPosition(false)
 
-		-- // Drag handling untuk Card
 		local cardDragging = false
 		local cardDragStart, cardStartPos
 		local cardPressPos = Vector2.new(0, 0)
@@ -4758,7 +4967,6 @@ function Chloex:Window(guiconfig)
 			end
 		end), "cardToggle.dragEnd")
 
-		-- // Classic Capsule Toggle Widget (Unified Sliding Bar)
 		local barH = isMobile and 34 or 38
 		local collapsedW = barH
 		local logoPad = isMobile and 3 or 4
@@ -4791,7 +4999,6 @@ function Chloex:Window(guiconfig)
 		classicStroke.Thickness = 1
 		classicStroke.Transparency = 1
 
-		-- // Logo Image (Fixed size agar tidak pernah geser / overlap tombol)
 		local logoImg = instance.imagelabel(classicBtn)
 		logoImg.Name = "LogoImg"
 		logoImg.Size = UDim2.new(0, barH, 0, barH)
@@ -4804,7 +5011,6 @@ function Chloex:Window(guiconfig)
 		local logoCorner = instance.uicorner(logoImg)
 		logoCorner.CornerRadius = UDim.new(0, 8)
 
-		-- // Click area for Logo
 		local logoClick = instance.textbutton(classicBtn)
 		logoClick.Name = "LogoClick"
 		logoClick.Size = UDim2.new(0, collapsedW, 1, 0)
@@ -4814,7 +5020,6 @@ function Chloex:Window(guiconfig)
 		logoClick.AutoButtonColor = false
 		logoClick.ZIndex = 1003
 
-		-- // Vertical Divider Line
 		local divider = instance.frame(classicBtn)
 		divider.Name = "Divider"
 		divider.Size = UDim2.new(0, 1, 0, barH - 14)
@@ -4826,7 +5031,6 @@ function Chloex:Window(guiconfig)
 		divider.Visible = false
 		divider.ZIndex = 1002
 
-		-- // Action Buttons Container
 		local btnContainer = instance.frame(classicBtn)
 		btnContainer.Name = "ActionButtons"
 		btnContainer.Size = UDim2.new(0, btnMainW + 4 + btnMiniW, 1, 0)
@@ -4842,7 +5046,6 @@ function Chloex:Window(guiconfig)
 		btnLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		btnLayout.Padding = UDim.new(0, 4)
 
-		-- // Button 1: Main UI
 		local btnFlyMain = instance.textbutton(btnContainer)
 		btnFlyMain.Name = "BtnFlyMain"
 		btnFlyMain.Size = UDim2.new(0, btnMainW, 0, btnH)
@@ -4863,7 +5066,6 @@ function Chloex:Window(guiconfig)
 		flyMainStroke.Thickness = 1
 		flyMainStroke.Transparency = 0.88
 
-		-- // Button 2: Mini UI
 		local btnFlyMini = instance.textbutton(btnContainer)
 		btnFlyMini.Name = "BtnFlyMini"
 		btnFlyMini.Size = UDim2.new(0, btnMiniW, 0, btnH)
@@ -5060,7 +5262,9 @@ function Chloex:Window(guiconfig)
 		end)
 
 		btnFlyMini.MouseButton1Click:Connect(function()
-			if miniHolder then
+			if toggleMiniWindow then
+				toggleMiniWindow()
+			elseif miniHolder then
 				miniHolder.Visible = not miniHolder.Visible
 				updateAllBtnVisuals()
 			end
@@ -5076,7 +5280,6 @@ function Chloex:Window(guiconfig)
 			end
 		end)
 
-		-- // Switch mode: Card Overlay vs Classic Pill Bar
 		setToggleUIStyle = function(style)
 			style = (style == "Square") and "Square" or "Overlay"
 			toggleUIStyle = style
@@ -5109,7 +5312,9 @@ function Chloex:Window(guiconfig)
 			isMiniUIEnabled = (enabled == true)
 			guiconfig.MiniUI = isMiniUIEnabled
 			if not isMiniUIEnabled then
-				if miniHolder then
+				if toggleMiniWindow then
+					toggleMiniWindow(false)
+				elseif miniHolder then
 					miniHolder.Visible = false
 				end
 			end
@@ -5741,7 +5946,6 @@ function Chloex:Window(guiconfig)
 		for _, secGroup in ipairs(sectionsOrder) do
 			local groupItems = sectionsMap[secGroup]
 
-			-- Section Header Separator (Clean, no arrow, no "-- Section Tabs")
 			layoutOrder = layoutOrder + 1
 			local secHeader = instance.frame(resultscroll)
 			secHeader.Name = "CategoryHeader - " .. secGroup
@@ -6049,7 +6253,6 @@ function Chloex:Window(guiconfig)
 		closeSearch(true)
 	end), "global.search.outsideClick")
 
-	-- // Universal Update Logs Resolver (GitHub API directory, JSON/Lua files, or Local Table)
 	local function resolveUpdateLogs(rawLogs, targetPlaceId, targetGameId)
 		if not rawLogs then
 			return nil
@@ -6084,7 +6287,6 @@ function Chloex:Window(guiconfig)
 		placeId = placeId or tostring(game.PlaceId)
 		gameId = gameId or tostring(game.GameId)
 
-		-- // Remote URL loader (directory per game, template {placeid}, or single file)
 		if type(rawLogs) == "string" and (string.find(rawLogs, "^https?://") or string.find(rawLogs, "^[%w_%-]+/[%w_%-]+")) then
 			local function tryFetchRaw(targetUrl)
 				local s, res = pcall(function()
@@ -6116,7 +6318,6 @@ function Chloex:Window(guiconfig)
 				return nil
 			end
 
-			-- // Natural semantic version comparator (latest version first)
 			local function compareVersions(a, b)
 				local na, nb = {}, {}
 				for n in string.gmatch(a, "%d+") do
@@ -6136,7 +6337,6 @@ function Chloex:Window(guiconfig)
 				return a > b
 			end
 
-			-- // Parser for individual version files (supports JSON, Lua table, or raw text)
 			local function parseVersionFile(rawText, filename)
 				local baseVersion = filename
 				local ext = string.match(filename, "%.([a-zA-Z]+)$")
@@ -6204,7 +6404,6 @@ function Chloex:Window(guiconfig)
 				return nil
 			end
 
-			-- // Check if GitHub repo folder to fetch files via GitHub API (e.g. changelogs/<gameid>/v0.0.1)
 			local function tryGitHubDirectory(urlStr)
 				local o, r, b, p = string.match(urlStr, "raw%.githubusercontent%.com/([^/]+)/([^/]+)/refs/heads/([^/]+)/?(.*)")
 				if not o then
@@ -6249,7 +6448,6 @@ function Chloex:Window(guiconfig)
 					local fileList = {}
 					local seenFiles = {}
 
-					-- // Method 1: Web tree scraper (Zero rate limits, executor safe)
 					local treeUrl = string.format("https://github.com/%s/%s/tree/%s/%s", o, r, b, targetPath)
 					local treeHtml = tryFetchRaw(treeUrl)
 					if treeHtml and type(treeHtml) == "string" and string.find(treeHtml, "blob/") then
@@ -6262,7 +6460,6 @@ function Chloex:Window(guiconfig)
 						end
 					end
 
-					-- // Method 2: REST API fallback if web tree had no files
 					if #fileList == 0 then
 						local apiUrl = string.format("https://api.github.com/repos/%s/%s/contents/%s", o, r, targetPath)
 						local res = tryFetch(apiUrl)
@@ -6306,7 +6503,6 @@ function Chloex:Window(guiconfig)
 				return nil
 			end
 
-			-- // 1. Try GitHub Directory (changelogs/<gameid>/v0.0.1)
 			local dirLogs = tryGitHubDirectory(rawLogs)
 			if dirLogs then
 				rawLogs = dirLogs
@@ -6359,7 +6555,6 @@ function Chloex:Window(guiconfig)
 			return nil
 		end
 
-		-- // Direct array of entries
 		if rawLogs[1] and type(rawLogs[1]) == "table" and (rawLogs[1].Version or rawLogs[1].Logs) then
 			return {
 				Title = nil,
@@ -6367,7 +6562,6 @@ function Chloex:Window(guiconfig)
 			}
 		end
 
-		-- // Object with Entries table
 		if rawLogs.Entries and type(rawLogs.Entries) == "table" then
 			return {
 				Title = rawLogs.Title,
@@ -6375,7 +6569,6 @@ function Chloex:Window(guiconfig)
 			}
 		end
 
-		-- // Match PlaceId or GameId or Default fallback
 		local matched = rawLogs[tonumber(placeId)]
 			or rawLogs[placeId]
 			or rawLogs[tonumber(gameId)]
@@ -6556,7 +6749,6 @@ function Chloex:Window(guiconfig)
 			end
 		end
 
-		-- // Dual-column exclusion filter for Information, Game Support, Discord, and Config
 		local isDualColumn = false
 		local tabNameLower = string.lower(tostring(tabconfig and tabconfig.Name or ""))
 		local isExcluded = (
@@ -6589,7 +6781,6 @@ function Chloex:Window(guiconfig)
 		scrollayers.BorderSizePixel = 0
 		scrollayers.Size = UDim2.new(1, 0, 1, 0)
 
-		-- // Dual-column vs Single-column layout setup
 		local columnLeft, columnRight, listLeft, listRight
 		local uilistlayout1
 
@@ -6976,7 +7167,18 @@ function Chloex:Window(guiconfig)
 			end
 			sectiontitletext = sectiontitletext or "Title"
 
-			-- // Mini UI Section Header (Main UI only)
+			if tostring(sectiontitletext) == "Chloe X Information" then
+				local dummy = {}
+				setmetatable(dummy, {
+					__index = function(_, k)
+						return function()
+							return dummy
+						end
+					end,
+				})
+				return dummy
+			end
+
 			local currentMiniSection = nil
 			if not isInfo and miniScroll then
 				miniLayoutOrder = miniLayoutOrder + 1
@@ -6999,7 +7201,17 @@ function Chloex:Window(guiconfig)
 				secTitle.TextTruncate = Enum.TextTruncate.AtEnd
 				secTitle.BackgroundTransparency = 1
 				secTitle.Position = UDim2.new(0, 4, 0, 0)
-				secTitle.Size = UDim2.new(1, -8, 1, -2)
+				secTitle.Size = UDim2.new(1, -26, 1, -2)
+
+				local secArrow = instance.imagelabel(miniSecFrame)
+				secArrow.Name = "Arrow"
+				secArrow.Image = "rbxassetid://16851841101"
+				secArrow.ImageColor3 = Color3.fromRGB(140, 140, 140)
+				secArrow.AnchorPoint = Vector2.new(1, 0.5)
+				secArrow.Position = UDim2.new(1, -4, 0.5, -1)
+				secArrow.Size = UDim2.new(0, 12, 0, 12)
+				secArrow.BackgroundTransparency = 1
+				secArrow.Rotation = 0
 
 				local secLine = instance.frame(miniSecFrame)
 				secLine.Name = "Line"
@@ -7010,17 +7222,53 @@ function Chloex:Window(guiconfig)
 				secLine.BackgroundTransparency = 0.94
 				secLine.BorderSizePixel = 0
 
+				local secBtn = instance.textbutton(miniSecFrame)
+				secBtn.Name = "ToggleBtn"
+				secBtn.Text = ""
+				secBtn.BackgroundTransparency = 1
+				secBtn.Size = UDim2.new(1, 0, 1, 0)
+				secBtn.ZIndex = 5
+
 				currentMiniSection = {
 					Title = sectiontitletext,
 					Header = miniSecFrame,
+					Arrow = secArrow,
+					TitleLabel = secTitle,
 					Items = {},
+					IsOpen = true,
 				}
 				table.insert(miniSections, currentMiniSection)
+
+				function currentMiniSection:SetOpen(state, animate)
+					self.IsOpen = (state ~= false)
+					local targetRot = self.IsOpen and 0 or -90
+					if animate ~= false and secArrow and secArrow.Parent then
+						sv.ts:Create(secArrow, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Rotation = targetRot }):Play()
+					elseif secArrow and secArrow.Parent then
+						secArrow.Rotation = targetRot
+					end
+					if refreshMiniItems then
+						refreshMiniItems()
+					end
+				end
+
+				secBtn.MouseEnter:Connect(function()
+					sv.ts:Create(secTitle, TweenInfo.new(0.15), { TextColor3 = guiconfig.Color or Color3.fromRGB(220, 220, 220) }):Play()
+					sv.ts:Create(secArrow, TweenInfo.new(0.15), { ImageColor3 = guiconfig.Color or Color3.fromRGB(220, 220, 220) }):Play()
+				end)
+
+				secBtn.MouseLeave:Connect(function()
+					sv.ts:Create(secTitle, TweenInfo.new(0.15), { TextColor3 = Color3.fromRGB(150, 150, 150) }):Play()
+					sv.ts:Create(secArrow, TweenInfo.new(0.15), { ImageColor3 = Color3.fromRGB(140, 140, 140) }):Play()
+				end)
+
+				secBtn.Activated:Connect(function()
+					currentMiniSection:SetOpen(not currentMiniSection.IsOpen, true)
+				end)
 			end
 
 			countsection = countsection + 1
 
-			-- // Target column container selection
 			local targetContainer = scrollayers
 			if isDualColumn then
 				local normalizedSide = side and string.lower(tostring(side))
@@ -7040,7 +7288,6 @@ function Chloex:Window(guiconfig)
 			section.ClipsDescendants = true
 			section.Size = UDim2.new(1, 0, 0, 30)
 
-			-- // Section Card styling (Type 2, Type 3 or mobile card style)
 			local isCardStyle = isDualColumn or ((guiconfig.Type == 2 or guiconfig.Type == 3) and (not isExcluded))
 			local headerLine = nil
 			if isCardStyle then
@@ -7270,8 +7517,6 @@ function Chloex:Window(guiconfig)
 				return table.concat(parts, "_")
 			end
 
-			-- // Elements inherit centralized window-level yieldbuild throttle
-
 			local function registerSearchItem(title, object, itemType, options)
 				title = tostring(title or "Item")
 
@@ -7428,85 +7673,72 @@ function Chloex:Window(guiconfig)
 
 			function items:AddPanel(panelconfig)
 				panelconfig = panelconfig or {}
+				if panelconfig.Image then
+					local aspectRatio = tonumber(panelconfig.AspectRatio) or 3.56
 
-				local panels = {
-					Chloe = {
-						Image = "rbxassetid://139546726059566",
-						AspectRatio = 3.56,
-					},
-					UgPhone = {
-						Image = "rbxassetid://95132907847500",
-						AspectRatio = 3.56,
-					},
-					ChloeStore = {
-						Image = "rbxassetid://78353987171005",
-						AspectRatio = 3.56,
-					},
-				}
+					local panel = instance.imagelabel(sectionadd)
+					panel.Name = "Panel"
+					panel.BackgroundTransparency = 1
+					panel.BorderSizePixel = 0
+					panel.Image = panelconfig.Image
+					panel.ScaleType = Enum.ScaleType.Fit
+					panel.Size = UDim2.new(1, 0, 0, 160)
+					panel.LayoutOrder = countitem
+					panel.ClipsDescendants = true
+					panel.ZIndex = 1
 
-				local paneldata = panels[panelconfig.Type] or panels.Chloe
-				local aspectRatio = tonumber(panelconfig.AspectRatio) or paneldata.AspectRatio
+					instance.uicorner(panel).CornerRadius = UDim.new(0, tonumber(panelconfig.CornerRadius) or 10)
 
-				local panel = instance.imagelabel(sectionadd)
-				panel.Name = "Panel"
-				panel.BackgroundTransparency = 1
-				panel.BorderSizePixel = 0
-				panel.Image = panelconfig.Image or paneldata.Image
-				panel.ScaleType = Enum.ScaleType.Fit
-				panel.Size = UDim2.new(1, 0, 0, 160)
-				panel.LayoutOrder = countitem
-				panel.ClipsDescendants = true
-				panel.ZIndex = 1
+					local lastWidth = -1
+					local resizeQueued = false
 
-				instance.uicorner(panel).CornerRadius = UDim.new(0, tonumber(panelconfig.CornerRadius) or 10)
+					local function updatePanelSize()
+						resizeQueued = false
 
-				local lastWidth = -1
-				local resizeQueued = false
+						if not panel or not panel.Parent then
+							return
+						end
 
-				local function updatePanelSize()
-					resizeQueued = false
+						local width = math.floor(panel.AbsoluteSize.X + 0.5)
 
-					if not panel or not panel.Parent then
-						return
+						if width <= 1 then
+							width = math.floor(sectionadd.AbsoluteSize.X + 0.5)
+						end
+
+						if width <= 1 or width == lastWidth then
+							return
+						end
+
+						lastWidth = width
+
+						local height = math.max(1, math.floor((width / aspectRatio) + 0.5))
+
+						panel.Size = UDim2.new(1, 0, 0, height)
 					end
 
-					local width = math.floor(panel.AbsoluteSize.X + 0.5)
+					local function queuePanelResize()
+						if resizeQueued then
+							return
+						end
 
-					if width <= 1 then
-						width = math.floor(sectionadd.AbsoluteSize.X + 0.5)
+						resizeQueued = true
+						task.defer(updatePanelSize)
 					end
 
-					if width <= 1 or width == lastWidth then
-						return
-					end
+					trackConnection(
+						sectionadd:GetPropertyChangedSignal("AbsoluteSize"):Connect(queuePanelResize),
+						"panel.adaptive.resize"
+					)
 
-					lastWidth = width
+					task.defer(queuePanelResize)
 
-					local height = math.max(1, math.floor((width / aspectRatio) + 0.5))
+					countitem = countitem + 1
+					yieldbuild()
 
-					panel.Size = UDim2.new(1, 0, 0, height)
+					return panel
 				end
 
-				local function queuePanelResize()
-					if resizeQueued then
-						return
-					end
-
-					resizeQueued = true
-					task.defer(updatePanelSize)
-				end
-
-				trackConnection(
-					sectionadd:GetPropertyChangedSignal("AbsoluteSize"):Connect(queuePanelResize),
-					"panel.adaptive.resize"
-				)
-
-				task.defer(queuePanelResize)
-
-				countitem = countitem + 1
-				yieldbuild()
-
-				return panel
+				return items:AddDiscordCard(panelconfig)
 			end
 
 			function items:AddUserCard(userconfig)
@@ -7721,7 +7953,6 @@ function Chloex:Window(guiconfig)
 				end
 				updateActiveText()
 
-				-- Live ticking counter every second
 				task.spawn(function()
 					while card and card.Parent do
 						task.wait(1)
@@ -7763,7 +7994,6 @@ function Chloex:Window(guiconfig)
 				return userfunc
 			end
 
-			-- // AddServerCondition Element (Server & Performance Monitor Card)
 			function items:AddServerCondition(perfconfig)
 				perfconfig = perfconfig or {}
 				local cardTitle = perfconfig.Title or (guiconfig.Language == "id" and "Kondisi Server" or (guiconfig.Language == "ru" and "Состояние сервера" or "Condition Server"))
@@ -7786,7 +8016,6 @@ function Chloex:Window(guiconfig)
 				uistroke.Thickness = 1
 				uistroke.Transparency = 0.88
 
-				-- // Title
 				local titleLabel = instance.textlabel(card)
 				titleLabel.Name = "Title"
 				titleLabel.Font = guiconfig.Font or Enum.Font.GothamBold
@@ -7800,7 +8029,6 @@ function Chloex:Window(guiconfig)
 				titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
 				titleLabel.ZIndex = 2
 
-				-- // Right Container: FPS (Cardless & Real-Time)
 				local fpsBox = instance.frame(card)
 				fpsBox.Name = "FpsContainer"
 				fpsBox.AnchorPoint = Vector2.new(1, 0.5)
@@ -7836,7 +8064,6 @@ function Chloex:Window(guiconfig)
 				fpsLabel.BackgroundTransparency = 1
 				fpsLabel.ZIndex = 3
 
-				-- // Left Container: 4 Metric Rows (CPU, GPU, Ping, Memory)
 				local leftContainer = instance.frame(card)
 				leftContainer.Name = "MetricsContainer"
 				leftContainer.BackgroundTransparency = 1
@@ -7910,7 +8137,6 @@ function Chloex:Window(guiconfig)
 						fpsAccum = fpsAccum + dt
 						local now = os.clock()
 
-						-- // Update FPS calculation frequently (every ~0.1s) for real-time natural fluctuation
 						if (now - lastFpsUpdate) >= 0.1 then
 							local liveFps = math.round(frameCount / math.max(0.0001, fpsAccum))
 							if liveFps > 0 and liveFps < 1000 then
@@ -7924,25 +8150,22 @@ function Chloex:Window(guiconfig)
 							lastFpsUpdate = now
 						end
 
-						-- // Update Metrics (CPU, GPU, Ping, Memory) every 0.35s
 						if (now - lastMetricUpdate) >= 0.35 then
 							lastMetricUpdate = now
 							pcall(function()
-								-- // CPU
+
 								local cpuMs = (cpuStat and cpuStat:GetValue())
 								if not cpuMs or cpuMs <= 0 then
 									cpuMs = 1000 / math.max(1, currentCalculatedFps)
 								end
 								cpuValLabel.Text = string.format("%.2f ms", cpuMs)
 
-								-- // GPU
 								local gpuMs = (gpuStat and gpuStat:GetValue())
 								if not gpuMs or gpuMs <= 0 then
 									gpuMs = 0.83
 								end
 								gpuValLabel.Text = string.format("%.2f ms", gpuMs)
 
-								-- // Ping
 								local pingMs = (pingStat and pingStat:GetValue())
 								if not pingMs then
 									local net = stats:FindFirstChild("Network")
@@ -7952,7 +8175,6 @@ function Chloex:Window(guiconfig)
 								end
 								pingValLabel.Text = string.format("%d ms", math.round(pingMs))
 
-								-- // Memory
 								local memMb = stats:GetTotalMemoryUsageMb()
 								memValLabel.Text = string.format("%.1f MB", memMb)
 							end)
@@ -7981,7 +8203,6 @@ function Chloex:Window(guiconfig)
 				return scFunc
 			end
 
-			-- // Aliases
 			items.AddServerPerformance = items.AddServerCondition
 			items.AddPerformanceCard = items.AddServerCondition
 
@@ -8204,7 +8425,6 @@ function Chloex:Window(guiconfig)
 				uistroke.Thickness = 1
 				uistroke.Transparency = 0.92
 
-				-- // Background Banner Thumbnail
 				local bgImg = instance.imagelabel(card)
 				bgImg.Name = "GameBannerImg"
 				bgImg.AnchorPoint = Vector2.new(1, 0)
@@ -8233,7 +8453,6 @@ function Chloex:Window(guiconfig)
 				})
 				grad.Parent = bgImg
 
-				-- // Game Name & Version
 				local nameLabel = instance.textlabel(card)
 				nameLabel.Name = "GameNameLabel"
 				nameLabel.Font = Enum.Font.GothamBold
@@ -8248,7 +8467,6 @@ function Chloex:Window(guiconfig)
 				nameLabel.RichText = true
 				nameLabel.ZIndex = 2
 
-				-- // Status Info Label
 				local idLabel = instance.textlabel(card)
 				idLabel.Name = "GameIdLabel"
 				idLabel.Font = guiconfig.Font or Enum.Font.Gotham
@@ -8305,7 +8523,6 @@ function Chloex:Window(guiconfig)
 					end)
 				end
 
-				-- // Hairline Divider (No stroke, pure 1px subtle divider)
 				local divider = instance.frame(card)
 				divider.Name = "LogsDivider"
 				divider.Position = UDim2.new(0, 12, 0, collapsedHeight)
@@ -8315,7 +8532,6 @@ function Chloex:Window(guiconfig)
 				divider.BorderSizePixel = 0
 				divider.ZIndex = 2
 
-				-- // Timeline Holder Frame (No inner strokes or nested cards)
 				local timelineHolder = instance.frame(card)
 				timelineHolder.Name = "TimelineHolder"
 				timelineHolder.Position = UDim2.new(0, 14, 0, collapsedHeight + 10)
@@ -8333,7 +8549,6 @@ function Chloex:Window(guiconfig)
 					},
 				}
 
-				-- // Timeline Renderer matching Information tab styling
 				local function renderTimeline(entryList)
 					if entryList and #entryList > 0 then
 						currentEntries = entryList
@@ -8359,7 +8574,6 @@ function Chloex:Window(guiconfig)
 							firstCircleY = circleCenterY
 						end
 
-						-- // Node circle
 						local circle = instance.frame(timelineHolder)
 						circle.Name = "NodeCircle"
 						circle.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -8381,7 +8595,6 @@ function Chloex:Window(guiconfig)
 						end
 						circle.ZIndex = 3
 
-						-- // Version & Date Header
 						local verLabel = instance.textlabel(timelineHolder)
 						verLabel.Name = "VerLabel"
 						verLabel.Font = Enum.Font.GothamBold
@@ -8415,7 +8628,6 @@ function Chloex:Window(guiconfig)
 							logRow.Size = UDim2.new(1, -18, 0, 16)
 							logRow.ZIndex = 2
 
-							-- // Log bullet icon (chevron / >)
 							local icon = instance.imagelabel(logRow)
 							icon.Name = "LogIcon"
 							icon.AnchorPoint = Vector2.new(0, 0.5)
@@ -8450,7 +8662,6 @@ function Chloex:Window(guiconfig)
 						end
 					end
 
-					-- // Continuous vertical rail line
 					if firstCircleY and lastLogY > firstCircleY then
 						local rail = instance.frame(timelineHolder)
 						rail.Name = "ContinuousRail"
@@ -8474,7 +8685,6 @@ function Chloex:Window(guiconfig)
 
 				renderTimeline(currentEntries)
 
-				-- // Remote GitHub Sync Loader
 				local rawUrl = gameconfig.Url
 					or gameconfig.ChangelogsUrl
 					or (type(gameconfig.Changelogs) == "string" and gameconfig.Changelogs:find("^https?://") and gameconfig.Changelogs)
@@ -8499,7 +8709,6 @@ function Chloex:Window(guiconfig)
 					end
 				end)
 
-				-- // Header Trigger Button for Accordion
 				local trigger = instance.textbutton(card)
 				trigger.Name = "HeaderTrigger"
 				trigger.Position = UDim2.new(0, 0, 0, 0)
@@ -8515,7 +8724,7 @@ function Chloex:Window(guiconfig)
 					sv.ts:Create(card, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
 						Size = UDim2.new(1, 0, 0, targetH),
 					}):Play()
-					-- // Strictly no white stroke when opened
+
 					sv.ts:Create(uistroke, TweenInfo.new(0.25), {
 						Transparency = isOpen and 1 or 0.92,
 					}):Play()
@@ -8568,6 +8777,370 @@ function Chloex:Window(guiconfig)
 				return cardfunc
 			end
 			items.AddSupportedGame = items.AddSupportedGameCard
+
+			local PRESET_DISCORDS = {
+				chloe = "PaPvGUE8UC",
+				chloex = "PaPvGUE8UC",
+				community = "PaPvGUE8UC",
+				ugphone = "ugphone-official",
+				["ugphone-official"] = "ugphone-official",
+				ugphone_id = "5cqYn4KPh6",
+				["ugphone_id"] = "5cqYn4KPh6",
+				["ugphone-id"] = "5cqYn4KPh6",
+				["ugphone id"] = "5cqYn4KPh6",
+				ugphoneid = "5cqYn4KPh6",
+				ugphonemy = "5cqYn4KPh6",
+				["ugphone_my"] = "5cqYn4KPh6",
+				["5cqYn4KPh6"] = "5cqYn4KPh6",
+				chloestore = "chloexstore",
+				store = "chloexstore",
+			}
+
+			function items:AddDiscordCard(discordconfig)
+				if type(discordconfig) == "string" then
+					discordconfig = { Invite = discordconfig }
+				else
+					discordconfig = discordconfig or {}
+				end
+
+				local typeKey = discordconfig.Type and string.lower(tostring(discordconfig.Type))
+				local initialInvite = discordconfig.Invite or discordconfig.Code or discordconfig.Url or (typeKey and PRESET_DISCORDS[typeKey]) or guiconfig.Discord or DEFAULT_CONFIG.Discord or "PaPvGUE8UC"
+				local rawInvite = tostring(initialInvite):gsub(".*discord%.gg/", ""):gsub(".*discord%.com/invite/", ""):gsub("^%s+", ""):gsub("%s+$", "")
+				local lowerRaw = string.lower(rawInvite)
+				if PRESET_DISCORDS[lowerRaw] then
+					rawInvite = PRESET_DISCORDS[lowerRaw]
+				end
+				local inviteCode = rawInvite
+				local inviteUrl = "https://discord.gg/" .. inviteCode
+
+				local card = instance.frame(sectionadd)
+				card.Name = "DiscordCard"
+				card.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+				card.BackgroundTransparency = 0
+				card.BorderSizePixel = 0
+				card.ClipsDescendants = true
+				card.LayoutOrder = countitem
+				card.Size = UDim2.new(1, 0, 0, 88)
+
+				local uicorner = instance.uicorner(card)
+				uicorner.CornerRadius = UDim.new(0, 6)
+
+				local uistroke = instance.uistroke(card)
+				uistroke.Color = Color3.fromRGB(255, 255, 255)
+				uistroke.Thickness = 1
+				uistroke.Transparency = 0.88
+
+				local bgBanner = instance.imagelabel(card)
+				bgBanner.Name = "DiscordBanner"
+				bgBanner.AnchorPoint = Vector2.new(1, 0.5)
+				bgBanner.Position = UDim2.new(1, 0, 0.5, 0)
+				bgBanner.Size = UDim2.new(0.65, 0, 1, 0)
+				bgBanner.BackgroundTransparency = 1
+				bgBanner.ImageTransparency = 0.55
+				bgBanner.BorderSizePixel = 0
+				bgBanner.ScaleType = Enum.ScaleType.Crop
+				bgBanner.ZIndex = 1
+
+				local grad = Instance.new("UIGradient")
+				grad.Name = "BannerFadeGradient"
+				grad.Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(0.40, 0.85),
+					NumberSequenceKeypoint.new(0.70, 0.40),
+					NumberSequenceKeypoint.new(1, 0.10),
+				})
+				grad.Parent = bgBanner
+
+				local iconImg = instance.imagelabel(card)
+				iconImg.Name = "DiscordIcon"
+				iconImg.AnchorPoint = Vector2.new(0, 0.5)
+				iconImg.Position = UDim2.new(0, 10, 0.5, 0)
+				iconImg.Size = UDim2.new(0, 56, 0, 56)
+				iconImg.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
+				iconImg.BackgroundTransparency = 0
+				iconImg.BorderSizePixel = 0
+				iconImg.ScaleType = Enum.ScaleType.Crop
+				iconImg.ZIndex = 2
+
+				local iconCorner = instance.uicorner(iconImg)
+				iconCorner.CornerRadius = UDim.new(0, 10)
+
+				local iconStroke = instance.uistroke(iconImg)
+				iconStroke.Color = Color3.fromRGB(255, 255, 255)
+				iconStroke.Thickness = 1
+				iconStroke.Transparency = 0.84
+
+				local details = instance.frame(card)
+				details.Name = "Details"
+				details.Position = UDim2.new(0, 76, 0, 10)
+				details.Size = UDim2.new(1, -88, 1, -20)
+				details.BackgroundTransparency = 1
+				details.BorderSizePixel = 0
+				details.ZIndex = 2
+
+				local nameLabel = instance.textlabel(details)
+				nameLabel.Name = "ServerName"
+				nameLabel.Font = Enum.Font.GothamBold
+				nameLabel.Text = discordconfig.Name or "Discord Server"
+				nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+				nameLabel.TextSize = 13
+				nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+				nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+				nameLabel.Size = UDim2.new(1, 0, 0, 16)
+				nameLabel.BackgroundTransparency = 1
+				nameLabel.BorderSizePixel = 0
+
+				local descLabel = instance.textlabel(details)
+				descLabel.Name = "Description"
+				descLabel.Font = guiconfig.Font
+				descLabel.Text = discordconfig.Description or ("discord.gg/" .. inviteCode)
+				descLabel.TextColor3 = Color3.fromRGB(195, 195, 200)
+				descLabel.TextSize = 10
+				descLabel.TextXAlignment = Enum.TextXAlignment.Left
+				descLabel.TextYAlignment = Enum.TextYAlignment.Top
+				descLabel.TextWrapped = true
+				descLabel.TextTruncate = Enum.TextTruncate.None
+				descLabel.Position = UDim2.new(0, 0, 0, 18)
+				descLabel.Size = UDim2.new(1, 0, 0, 26)
+				descLabel.BackgroundTransparency = 1
+				descLabel.BorderSizePixel = 0
+
+				local statsRow = instance.frame(details)
+				statsRow.Name = "StatsRow"
+				statsRow.Position = UDim2.new(0, 0, 1, -16)
+				statsRow.Size = UDim2.new(1, 0, 0, 16)
+				statsRow.BackgroundTransparency = 1
+				statsRow.BorderSizePixel = 0
+
+				local statsLayout = Instance.new("UIListLayout")
+				statsLayout.FillDirection = Enum.FillDirection.Horizontal
+				statsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+				statsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				statsLayout.Padding = UDim.new(0, 8)
+				statsLayout.Parent = statsRow
+
+				local onDot = instance.frame(statsRow)
+				onDot.Name = "OnlineDot"
+				onDot.LayoutOrder = 1
+				onDot.Size = UDim2.new(0, 8, 0, 8)
+				onDot.BackgroundColor3 = Color3.fromRGB(59, 165, 93)
+				onDot.BorderSizePixel = 0
+				instance.uicorner(onDot).CornerRadius = UDim.new(1, 0)
+
+				local onLabel = instance.textlabel(statsRow)
+				onLabel.Name = "OnlineLabel"
+				onLabel.LayoutOrder = 2
+				onLabel.Font = guiconfig.Font
+				onLabel.Text = '<font color="rgb(255,255,255)"><b>...</b></font> <font color="rgb(205,205,210)">Online</font>'
+				onLabel.TextSize = 10
+				onLabel.TextColor3 = Color3.fromRGB(205, 205, 210)
+				onLabel.TextXAlignment = Enum.TextXAlignment.Left
+				onLabel.AutomaticSize = Enum.AutomaticSize.X
+				onLabel.Size = UDim2.new(0, 0, 1, 0)
+				onLabel.BackgroundTransparency = 1
+				onLabel.BorderSizePixel = 0
+				onLabel.RichText = true
+
+				local memDot = instance.frame(statsRow)
+				memDot.Name = "MemberDot"
+				memDot.LayoutOrder = 3
+				memDot.Size = UDim2.new(0, 8, 0, 8)
+				memDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+				memDot.BorderSizePixel = 0
+				instance.uicorner(memDot).CornerRadius = UDim.new(1, 0)
+
+				local memLabel = instance.textlabel(statsRow)
+				memLabel.Name = "MemberLabel"
+				memLabel.LayoutOrder = 4
+				memLabel.Font = guiconfig.Font
+				memLabel.Text = '<font color="rgb(255,255,255)"><b>...</b></font> <font color="rgb(205,205,210)">Members</font>'
+				memLabel.TextSize = 10
+				memLabel.TextColor3 = Color3.fromRGB(205, 205, 210)
+				memLabel.TextXAlignment = Enum.TextXAlignment.Left
+				memLabel.AutomaticSize = Enum.AutomaticSize.X
+				memLabel.Size = UDim2.new(0, 0, 1, 0)
+				memLabel.BackgroundTransparency = 1
+				memLabel.BorderSizePixel = 0
+				memLabel.RichText = true
+
+				local function formatNumber(n)
+					n = tonumber(n) or 0
+					local left, num, right = string.match(tostring(n), '^([^%d]*%d)(%d*)(.-)$')
+					if left and num and right then
+						return left .. (num:reverse():gsub('(%d%d%d)', '%1,'):reverse()) .. right
+					end
+					return tostring(n)
+				end
+
+				local function fetchDiscordData()
+					task.spawn(function()
+						local reqFunc = request or http_request or (syn and syn.request) or (fluxus and fluxus.request)
+						local res = nil
+						local endpoint = "https://discord.com/api/v9/invites/" .. inviteCode .. "?with_counts=true"
+
+						if reqFunc then
+							pcall(function()
+								res = reqFunc({
+									Url = endpoint,
+									Method = "GET",
+								})
+							end)
+						end
+
+						local body = res and (res.Body or res.body)
+						if (not body or body == "") and game.HttpGet then
+							pcall(function()
+								body = game:HttpGet(endpoint)
+							end)
+						end
+
+						if not body or body == "" or (res and res.StatusCode and res.StatusCode ~= 200) then
+							nameLabel.Text = discordconfig.Name or "Discord Community"
+							descLabel.Text = inviteUrl
+							onLabel.Text = '<font color="rgb(255,255,255)"><b>--</b></font> <font color="rgb(205,205,210)">Online</font>'
+							memLabel.Text = '<font color="rgb(255,255,255)"><b>--</b></font> <font color="rgb(205,205,210)">Members</font>'
+							return
+						end
+
+						local decodeOk, data = pcall(function()
+							return sv.http:JSONDecode(body)
+						end)
+
+						if not decodeOk or type(data) ~= "table" then return end
+
+						local guild = data.guild or {}
+						local gId = tostring(guild.id or "")
+						local iconHash = guild.icon
+						local bannerHash = guild.banner or guild.splash
+
+						if nameLabel and nameLabel.Parent then
+							nameLabel.Text = tostring(guild.name or discordconfig.Name or "Discord Server")
+						end
+						if descLabel and descLabel.Parent then
+							descLabel.Text = tostring(guild.description or discordconfig.Description or inviteUrl)
+						end
+
+						local onCount = data.approximate_presence_count
+						local memCount = data.approximate_member_count
+
+						if onLabel and onLabel.Parent then
+							onLabel.Text = '<font color="rgb(255,255,255)"><b>' .. formatNumber(onCount) .. '</b></font> <font color="rgb(205,205,210)">Online</font>'
+						end
+						if memLabel and memLabel.Parent then
+							memLabel.Text = '<font color="rgb(255,255,255)"><b>' .. formatNumber(memCount) .. '</b></font> <font color="rgb(205,205,210)">Members</font>'
+						end
+
+						if isfolder and makefolder and not isfolder("Chloe X/Cache") then
+							pcall(makefolder, "Chloe X/Cache")
+						end
+
+						local customAssetFunc = getcustomasset or getsynasset
+						if reqFunc and writefile and customAssetFunc and gId ~= "" then
+							if iconHash then
+								task.spawn(function()
+									local iconUrl = "https://cdn.discordapp.com/icons/" .. gId .. "/" .. iconHash .. ".png?size=128"
+									local iRes = reqFunc({ Url = iconUrl, Method = "GET" })
+									local iBody = iRes and (iRes.Body or iRes.body)
+									if iRes and iRes.StatusCode == 200 and iBody and #iBody > 0 then
+										local path = "Chloe X/Cache/discord_icon_" .. gId .. ".png"
+										pcall(writefile, path, iBody)
+										local aId = customAssetFunc(path)
+										if iconImg and iconImg.Parent and aId then
+											iconImg.Image = aId
+										end
+									end
+								end)
+							end
+
+							if bannerHash then
+								task.spawn(function()
+									local bannerUrl = "https://cdn.discordapp.com/banners/" .. gId .. "/" .. bannerHash .. ".png?size=512"
+									local bRes = reqFunc({ Url = bannerUrl, Method = "GET" })
+									local bBody = bRes and (bRes.Body or bRes.body)
+									if bRes and bRes.StatusCode == 200 and bBody and #bBody > 0 then
+										local path = "Chloe X/Cache/discord_banner_" .. gId .. ".png"
+										pcall(writefile, path, bBody)
+										local aId = customAssetFunc(path)
+										if bgBanner and bgBanner.Parent and aId then
+											bgBanner.Image = aId
+										end
+									end
+								end)
+							end
+						end
+					end)
+				end
+
+				fetchDiscordData()
+
+				registerSearchItem("Discord: " .. (discordconfig.Name or inviteCode), card, "DiscordCard")
+				countitem = countitem + 1
+				yieldbuild()
+
+				local clickOverlay = instance.textbutton(card)
+				clickOverlay.Name = "ClickOverlay"
+				clickOverlay.Size = UDim2.new(1, 0, 1, 0)
+				clickOverlay.Position = UDim2.new(0, 0, 0, 0)
+				clickOverlay.BackgroundTransparency = 1
+				clickOverlay.Text = ""
+				clickOverlay.ZIndex = 5
+
+				clickOverlay.MouseEnter:Connect(function()
+					sv.ts:Create(card, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(22, 22, 25) }):Play()
+				end)
+				clickOverlay.MouseLeave:Connect(function()
+					sv.ts:Create(card, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(15, 15, 15) }):Play()
+				end)
+
+				local isClicking = false
+				local function onCardClick()
+					if isClicking then
+						return
+					end
+					isClicking = true
+					task.delay(0.4, function()
+						isClicking = false
+					end)
+
+					local copyFunc = setclipboard or toclipboard
+					if copyFunc then
+						pcall(copyFunc, inviteUrl)
+						if Chloex.Notify then
+							Chloex.Notify(
+								"Invite link copied: " .. inviteUrl,
+								3.5,
+								Color3.fromRGB(88, 101, 242),
+								"Discord",
+								"Copied"
+							)
+						end
+					end
+					if typeof(discordconfig.Callback) == "function" then
+						pcall(discordconfig.Callback, inviteUrl)
+					end
+				end
+				clickOverlay.Activated:Connect(onCardClick)
+
+				local cardfunc = {}
+				function cardfunc:Refresh()
+					fetchDiscordData()
+				end
+				function cardfunc:SetInvite(newInvite)
+					rawInvite = newInvite
+					inviteCode = tostring(rawInvite):gsub(".*discord%.gg/", ""):gsub(".*discord%.com/invite/", ""):gsub("^%s+", ""):gsub("%s+$", "")
+					inviteUrl = (string.find(tostring(rawInvite), "^https?://") and tostring(rawInvite)) or ("https://discord.gg/" .. inviteCode)
+					fetchDiscordData()
+				end
+				function cardfunc:GetCard()
+					return card
+				end
+				function cardfunc:GetButton()
+					return clickOverlay
+				end
+				return cardfunc
+			end
+			items.AddDiscord = items.AddDiscordCard
+			items.AddDiscordInfo = items.AddDiscordCard
 
 			function items:AddUpdateLogs(logsconfig)
 				logsconfig = logsconfig or {}
@@ -8636,7 +9209,6 @@ function Chloex:Window(guiconfig)
 				timelineHolder.BackgroundTransparency = 1
 				timelineHolder.BorderSizePixel = 0
 
-				-- // Timeline renderer
 				local function renderTimeline(entryList, newTitle)
 					if newTitle then
 						cardTitle = tostring(newTitle)
@@ -8658,7 +9230,6 @@ function Chloex:Window(guiconfig)
 							firstCircleY = circleCenterY
 						end
 
-						-- // Node circle
 						local circle = instance.frame(timelineHolder)
 						circle.Name = "NodeCircle"
 						circle.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -8680,7 +9251,6 @@ function Chloex:Window(guiconfig)
 						end
 						circle.ZIndex = 3
 
-						-- // Version header
 						local verLabel = instance.textlabel(timelineHolder)
 						verLabel.Name = "VerLabel"
 						verLabel.Font = Enum.Font.GothamBold
@@ -8713,7 +9283,6 @@ function Chloex:Window(guiconfig)
 							logRow.Size = UDim2.new(1, -18, 0, 16)
 							logRow.ZIndex = 2
 
-							-- // Log bullet icon
 							local icon = instance.imagelabel(logRow)
 							icon.Name = "LogIcon"
 							icon.AnchorPoint = Vector2.new(0, 0.5)
@@ -8748,7 +9317,6 @@ function Chloex:Window(guiconfig)
 						end
 					end
 
-					-- // Continuous vertical rail line
 					local rail = instance.frame(timelineHolder)
 					rail.Name = "ContinuousRail"
 					rail.AnchorPoint = Vector2.new(0.5, 0)
@@ -8963,7 +9531,6 @@ function Chloex:Window(guiconfig)
 				toggleconfig.Default = toggleconfig.Default or false
 				toggleconfig.Callback = toggleconfig.Callback or function() end
 
-				-- // Dual Toggle Support (Single Card: Type = "Right" or "Down")
 				if toggleconfig.SubTitle and (toggleconfig.SubCallback ~= nil or toggleconfig.SubDefault ~= nil or toggleconfig.Dual == true) then
 					local layoutMode = (toggleconfig.Type and string.lower(tostring(toggleconfig.Type)))
 						or (toggleconfig.Layout and string.lower(tostring(toggleconfig.Layout)))
@@ -9002,12 +9569,8 @@ function Chloex:Window(guiconfig)
 
 					local function createToggleBox(isSub)
 						local tTitleText = isSub and toggleconfig.SubTitle or toggleconfig.Title
-						local tDef = false
-						if isSub then
-							tDef = (toggleconfig.SubDefault == true)
-						else
-							tDef = (toggleconfig.Default == true)
-						end
+						local origDef = isSub and (toggleconfig.SubDefault == true) or (toggleconfig.Default == true)
+						local tDef = origDef
 						local tCb = isSub and (toggleconfig.SubCallback or function() end) or (toggleconfig.Callback or function() end)
 
 						local cfgKey = makeConfigKey("Toggle", tTitleText)
@@ -9082,7 +9645,7 @@ function Chloex:Window(guiconfig)
 
 						local singleFunc = {
 							Value = tDef,
-							Default = tDef,
+							Default = origDef,
 							_configType = "Toggle",
 						}
 
@@ -9168,6 +9731,7 @@ function Chloex:Window(guiconfig)
 					return dualfunc
 				end
 
+				local origToggleDef = (toggleconfig.Default == true)
 				local configkey = makeConfigKey("Toggle", toggleconfig.Title)
 				local normKey = normalizeConfigKey(configkey)
 				if config.data[configkey] ~= nil then
@@ -9178,7 +9742,7 @@ function Chloex:Window(guiconfig)
 
 				local togglefunc = {
 					Value = toggleconfig.Default,
-					Default = (toggleconfig.Default == true),
+					Default = origToggleDef,
 					_configType = "Toggle",
 				}
 
@@ -9276,7 +9840,6 @@ function Chloex:Window(guiconfig)
 				end
 				togglefunc:Set(togglefunc.Value, true)
 
-				-- // Mini UI Sync for Toggle (Main UI only)
 				if not isInfo and miniScroll then
 					miniLayoutOrder = miniLayoutOrder + 1
 					local mRow = instance.frame(miniScroll)
@@ -9365,6 +9928,7 @@ function Chloex:Window(guiconfig)
 						Type = "Toggle",
 						Title = toggleconfig.Title,
 						SectionTitle = sectiontitletext,
+						Section = currentMiniSection,
 						Row = mRow,
 						IsActive = function()
 							return togglefunc.Value == true
@@ -9395,7 +9959,6 @@ function Chloex:Window(guiconfig)
 				sliderconfig.Default = tonumber(sliderconfig.Default) or sliderconfig.Min
 				sliderconfig.Callback = sliderconfig.Callback or function() end
 
-				-- // Dual Slider Support (Single Card: Type = "Right" or "Down")
 				if sliderconfig.SubTitle and (sliderconfig.SubCallback ~= nil or sliderconfig.SubDefault ~= nil or sliderconfig.SubMin ~= nil or sliderconfig.SubMax ~= nil or sliderconfig.Dual == true) then
 					local layoutMode = (sliderconfig.Type and string.lower(tostring(sliderconfig.Type)))
 						or (sliderconfig.Layout and string.lower(tostring(sliderconfig.Layout)))
@@ -9570,7 +10133,6 @@ function Chloex:Window(guiconfig)
 							end
 						end
 
-						-- Drag interaction
 						local dragging = false
 						local function updateFromInput(inputObj)
 							local trackPos = track.AbsolutePosition.X
@@ -9988,7 +10550,6 @@ function Chloex:Window(guiconfig)
 
 				sliderfunc:Set(sliderfunc.Value, true)
 
-				-- // Mini UI Sync for Slider (Main UI only)
 				if not isInfo and miniScroll then
 					miniLayoutOrder = miniLayoutOrder + 1
 					local mRow = instance.frame(miniScroll)
@@ -10141,6 +10702,7 @@ function Chloex:Window(guiconfig)
 						Type = "Slider",
 						Title = sliderconfig.Title,
 						SectionTitle = sectiontitletext,
+						Section = currentMiniSection,
 						Row = mRow,
 						IsActive = function()
 							return sliderfunc.Value > sliderfunc.Min
@@ -10162,7 +10724,6 @@ function Chloex:Window(guiconfig)
 				return sliderfunc
 			end
 
-			-- // AddColorPicker Element (Visual Color Bar, Sliders & RGB/HEX Inputs)
 			function items:AddColorPicker(pickerconfig)
 				pickerconfig = pickerconfig or {}
 				pickerconfig.Title = pickerconfig.Title or "Color Picker"
@@ -10214,7 +10775,6 @@ function Chloex:Window(guiconfig)
 				rStroke.Thickness = 1
 				rStroke.Transparency = 0.88
 
-				-- // 1. Title
 				local title = instance.textlabel(row)
 				title.Font = guiconfig.Font or Enum.Font.GothamBold
 				title.Text = pickerconfig.Title
@@ -10225,7 +10785,6 @@ function Chloex:Window(guiconfig)
 				title.Position = UDim2.new(0, 10, 0, 8)
 				title.Size = UDim2.new(1, -20, 0, 18)
 
-				-- // 2. Content (Title2 / Description)
 				if hasPickerSub then
 					local desc = instance.textlabel(row)
 					desc.Name = "ColorPickerSubTitle"
@@ -10241,7 +10800,6 @@ function Chloex:Window(guiconfig)
 					desc.Size = UDim2.new(1, -20, 0, 16)
 				end
 
-				-- // 3. Hasil dari warna slider / input (Color Preview Bar)
 				local previewBar = instance.frame(row)
 				previewBar.Name = "ColorResultBar"
 				previewBar.Position = UDim2.new(0, 10, 0, startY)
@@ -10250,7 +10808,6 @@ function Chloex:Window(guiconfig)
 				previewBar.BorderSizePixel = 0
 				instance.uicorner(previewBar).CornerRadius = UDim.new(0, 4)
 
-				-- // 4. Slider: Rainbow Hue Bar
 				local hueBar = instance.frame(row)
 				hueBar.Name = "HueBar"
 				hueBar.Position = UDim2.new(0, 10, 0, startY + 20)
@@ -10283,7 +10840,6 @@ function Chloex:Window(guiconfig)
 				htStroke.Thickness = 1.2
 				htStroke.Transparency = 0.35
 
-				-- // 5. Slider Slider: Saturation & Brightness/Value Bars
 				local satBar = instance.frame(row)
 				satBar.Name = "SatBar"
 				satBar.Position = UDim2.new(0, 10, 0, startY + 40)
@@ -10328,7 +10884,6 @@ function Chloex:Window(guiconfig)
 				vtStroke.Thickness = 1.2
 				vtStroke.Transparency = 0.35
 
-				-- // 6. Input RGB Box
 				local rgbBox = instance.frame(row)
 				rgbBox.Name = "RGBInputBox"
 				rgbBox.Position = UDim2.new(0, 10, 0, startY + 60)
@@ -10358,7 +10913,6 @@ function Chloex:Window(guiconfig)
 				rgbInput.Position = UDim2.new(0, 40, 0, 0)
 				rgbInput.Size = UDim2.new(1, -48, 1, 0)
 
-				-- // 7. Input HEX Box
 				local hexBox = instance.frame(row)
 				hexBox.Name = "HEXInputBox"
 				hexBox.Position = UDim2.new(0, 10, 0, startY + 88)
@@ -10426,7 +10980,6 @@ function Chloex:Window(guiconfig)
 					end
 				end
 
-				-- // Slider interaction logic (On-Demand Connection Pattern)
 				local function bindSlider(bar, onUpdate)
 					local dragConn = nil
 					local endConn = nil
@@ -10480,7 +11033,6 @@ function Chloex:Window(guiconfig)
 					updateVisuals(true)
 				end)
 
-				-- // Two-Way Input: RGB FocusLost
 				rgbInput.FocusLost:Connect(function(enterPressed)
 					local text = rgbInput.Text
 					local r, g, b = text:match("(%d+)%s*[,%s]%s*(%d+)%s*[,%s]%s*(%d+)")
@@ -10499,7 +11051,6 @@ function Chloex:Window(guiconfig)
 					end
 				end)
 
-				-- // Two-Way Input: HEX FocusLost
 				hexInput.FocusLost:Connect(function(enterPressed)
 					local text = hexInput.Text:gsub("%s+", "")
 					if text:sub(1, 1) == "#" then text = text:sub(2) end
@@ -10548,7 +11099,6 @@ function Chloex:Window(guiconfig)
 				inputconfig.Callback = inputconfig.Callback or function() end
 				inputconfig.Default = inputconfig.Default or ""
 
-				-- // Dual Input Support (Single Card: Type = "Right" or "Down")
 				if inputconfig.SubTitle and (inputconfig.SubCallback ~= nil or inputconfig.SubDefault ~= nil or inputconfig.SubPlaceholder ~= nil or inputconfig.Dual == true) then
 					local layoutMode = (inputconfig.Type and string.lower(tostring(inputconfig.Type)))
 						or (inputconfig.Layout and string.lower(tostring(inputconfig.Layout)))
@@ -10840,7 +11390,6 @@ function Chloex:Window(guiconfig)
 
 				inputfunc:Set(inputfunc.Value)
 
-				-- // Mini UI Sync for Input (Main UI only)
 				if not isInfo and miniScroll then
 					miniLayoutOrder = miniLayoutOrder + 1
 					local mRow = instance.frame(miniScroll)
@@ -10911,6 +11460,7 @@ function Chloex:Window(guiconfig)
 						Type = "Input",
 						Title = inputconfig.Title,
 						SectionTitle = sectiontitletext,
+						Section = currentMiniSection,
 						Row = mRow,
 						IsActive = function()
 							return inputfunc.Value ~= nil and inputfunc.Value ~= ""
@@ -10932,7 +11482,6 @@ function Chloex:Window(guiconfig)
 				return inputfunc
 			end
 
-			-- // AddKeybind Element
 			function items:AddKeybind(keybindconfig)
 				keybindconfig = keybindconfig or {}
 				keybindconfig.Title = keybindconfig.Title or "Keybind"
@@ -11071,7 +11620,7 @@ function Chloex:Window(guiconfig)
 
 				kBtn.Activated:Connect(startListening)
 
-				function keybindfunc:Set(newKey)
+				function keybindfunc:Set(newKey, isSilent)
 					if typeof(newKey) == "string" and Enum.KeyCode[newKey] then
 						newKey = Enum.KeyCode[newKey]
 					end
@@ -11079,7 +11628,7 @@ function Chloex:Window(guiconfig)
 						keybindfunc.Value = newKey
 						config.data[configkey] = newKey.Name
 						kLabel.Text = newKey.Name
-						if typeof(keybindconfig.Callback) == "function" then
+						if not isSilent and typeof(keybindconfig.Callback) == "function" then
 							pcall(keybindconfig.Callback, newKey)
 						end
 					end
@@ -11162,7 +11711,6 @@ function Chloex:Window(guiconfig)
 					mStroke.Thickness = 1
 					mStroke.Transparency = 0.92
 
-					-- // Title
 					local mTitle = instance.textlabel(mRow)
 					mTitle.Font = guiconfig.Font or Enum.Font.GothamBold
 					mTitle.Text = dropdownconfig.Title
@@ -11174,7 +11722,6 @@ function Chloex:Window(guiconfig)
 					mTitle.Position = UDim2.new(0, 8, 0, 4)
 					mTitle.Size = UDim2.new(1, -16, 0, 14)
 
-					-- // Select Button Header
 					local mSelectBtn = instance.textbutton(mRow)
 					mSelectBtn.Name = "SelectBtn"
 					mSelectBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -11209,7 +11756,6 @@ function Chloex:Window(guiconfig)
 					mArrow.BackgroundTransparency = 1
 					mArrow.Rotation = -90
 
-					-- // Search box inside dropdown
 					local mDropSearchFrame = instance.frame(mRow)
 					mDropSearchFrame.Name = "DropSearchFrame"
 					mDropSearchFrame.Position = UDim2.new(0, 8, 0, 44)
@@ -11244,7 +11790,6 @@ function Chloex:Window(guiconfig)
 					mDropSearchInput.ClearTextOnFocus = false
 					mDropSearchInput.Text = ""
 
-					-- // Options scrolling list
 					local mOptScroll = instance.scrollingframe(mRow)
 					mOptScroll.Name = "OptScroll"
 					mOptScroll.Position = UDim2.new(0, 8, 0, 70)
@@ -11454,6 +11999,7 @@ function Chloex:Window(guiconfig)
 						Type = "Dropdown",
 						Title = dropdownconfig.Title,
 						SectionTitle = sectiontitletext,
+						Section = currentMiniSection,
 						Row = mRow,
 						IsActive = function()
 							if dropdownconfig.Multi then
@@ -13188,7 +13734,6 @@ function Chloex:Window(guiconfig)
 				return dropdownfunc
 			end
 
-			-- // AddBody / AddBodyTarget Element (Interactive Humanoid Dummy with Selected Part Dropdown)
 			function items:AddBody(bodyconfig)
 				bodyconfig = bodyconfig or {}
 				bodyconfig.Title = bodyconfig.Title or "Hitbox Target"
@@ -13264,7 +13809,6 @@ function Chloex:Window(guiconfig)
 				bStroke.Thickness = 1
 				bStroke.Transparency = 0.88
 
-				-- // Header Area
 				local title = instance.textlabel(row)
 				title.Font = guiconfig.Font or Enum.Font.GothamBold
 				title.Text = bodyconfig.Title
@@ -13275,7 +13819,6 @@ function Chloex:Window(guiconfig)
 				title.Position = UDim2.new(0, 10, 0, 8)
 				title.Size = UDim2.new(1, -20, 0, 18)
 
-				-- // Left Side: Mannequin Canvas Container
 				local canvas = instance.frame(row)
 				canvas.Name = "MannequinCanvas"
 				canvas.Position = UDim2.new(0, 8, 0, 32)
@@ -13288,7 +13831,6 @@ function Chloex:Window(guiconfig)
 				cStroke.Thickness = 1
 				cStroke.Transparency = 0.92
 
-				-- // Limb Definitions
 				local limbButtons = {}
 				local limbDefs = {
 					{ Name = "Head", Display = "Head", Label = "H", Size = UDim2.new(0, 24, 0, 24), Pos = UDim2.new(0.5, 0, 0, 8), Corner = 6 },
@@ -13299,7 +13841,6 @@ function Chloex:Window(guiconfig)
 					{ Name = "Right Leg", Display = "Right Leg", Label = "R", Size = UDim2.new(0, 14, 0, 46), Pos = UDim2.new(0.5, 9, 0, 82), Corner = 4 },
 				}
 
-				-- // Right Side: Selected Part Dropdown Panel
 				local dropPanel = instance.frame(row)
 				dropPanel.Name = "SelectedPartsPanel"
 				dropPanel.Position = UDim2.new(0, 100, 0, 32)
@@ -13314,7 +13855,6 @@ function Chloex:Window(guiconfig)
 				dStroke.Thickness = 1
 				dStroke.Transparency = 0.92
 
-				-- // Dropdown Header Bar
 				local dHeader = instance.frame(dropPanel)
 				dHeader.Name = "Header"
 				dHeader.Size = UDim2.new(1, 0, 0, 24)
@@ -13348,7 +13888,6 @@ function Chloex:Window(guiconfig)
 				dBadgeLabel.BackgroundTransparency = 1
 				dBadgeLabel.Size = UDim2.new(1, 0, 1, 0)
 
-				-- // Scrollable List of Selected Items ("kotak")
 				local partScroll = instance.scrollingframe(dropPanel)
 				partScroll.Name = "SelectedScroll"
 				partScroll.Position = UDim2.new(0, 4, 0, 28)
@@ -13364,7 +13903,6 @@ function Chloex:Window(guiconfig)
 				partLayout.Padding = UDim.new(0, 3)
 				partLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-				-- // Empty State Placeholder
 				local emptyLabel = instance.textlabel(partScroll)
 				emptyLabel.Name = "EmptyLabel"
 				emptyLabel.Size = UDim2.new(1, 0, 0, 50)
@@ -13399,7 +13937,6 @@ function Chloex:Window(guiconfig)
 							if not firstActive then firstActive = def.Name end
 						end
 
-						-- // Update mannequin limb button visual
 						local btn = limbButtons[def.Name]
 						if btn then
 							local stroke = btn:FindFirstChildWhichIsA("UIStroke")
@@ -13421,18 +13958,16 @@ function Chloex:Window(guiconfig)
 						end
 					end
 
-					-- // Update Count Badge & Empty State
 					dBadgeLabel.Text = tostring(activeCount)
 					dBadgeLabel.TextColor3 = activeCount > 0 and (bodyconfig.Color or guiconfig.Color) or Color3.fromRGB(140, 140, 140)
 					emptyLabel.Visible = (activeCount == 0)
 
-					-- // Update Selected Part Kotak Cards
 					for idx, def in ipairs(limbDefs) do
 						local isSel = selectedMap[def.Name] == true
 						local existingCard = activeCards[def.Name]
 
 						if isSel and not existingCard then
-							-- // Create new kotak card
+
 							local card = instance.textbutton(partScroll)
 							card.Name = "Kotak_" .. def.Name
 							card.Size = UDim2.new(1, 0, 0, 22)
@@ -13444,7 +13979,6 @@ function Chloex:Window(guiconfig)
 							card.LayoutOrder = idx
 							instance.uicorner(card).CornerRadius = UDim.new(0, 4)
 
-							-- // Part display name
 							local lbl = instance.textlabel(card)
 							lbl.Font = guiconfig.Font or Enum.Font.GothamBold
 							lbl.Text = def.Display
@@ -13455,7 +13989,6 @@ function Chloex:Window(guiconfig)
 							lbl.Position = UDim2.new(0, 8, 0, 0)
 							lbl.Size = UDim2.new(1, -16, 1, 0)
 
-							-- // Hover feedback (smooth background tint only, no stroke/outline)
 							card.MouseEnter:Connect(function()
 								sv.ts:Create(card, TweenInfo.new(0.12), { BackgroundColor3 = Color3.fromRGB(34, 34, 38) }):Play()
 								sv.ts:Create(lbl, TweenInfo.new(0.12), { TextColor3 = Color3.fromRGB(255, 255, 255) }):Play()
@@ -13465,7 +13998,6 @@ function Chloex:Window(guiconfig)
 								sv.ts:Create(lbl, TweenInfo.new(0.12), { TextColor3 = Color3.fromRGB(210, 210, 210) }):Play()
 							end)
 
-							-- // 1-click delete / unselect!
 							card.Activated:Connect(function()
 								selectedMap[def.Name] = nil
 								updateVisuals(true)
@@ -13487,7 +14019,6 @@ function Chloex:Window(guiconfig)
 					end
 				end
 
-				-- // Create Mannequin Limb Buttons
 				for _, def in ipairs(limbDefs) do
 					local partBtn = instance.textbutton(canvas)
 					partBtn.Name = def.Name
@@ -13580,12 +14111,10 @@ function Chloex:Window(guiconfig)
 				return bodyfunc
 			end
 
-			-- // Alias AddBodyTarget
 			function items:AddBodyTarget(bodyconfig)
 				return items:AddBody(bodyconfig)
 			end
 
-			-- // AddProgressBar Element (Multi-Step / Milestone Progress Indicator)
 			function items:AddProgressBar(progressconfig)
 				progressconfig = progressconfig or {}
 				progressconfig.Title = progressconfig.Title or "Progress"
@@ -13624,7 +14153,6 @@ function Chloex:Window(guiconfig)
 				rowStroke.Thickness = 1
 				rowStroke.Transparency = 0.88
 
-				-- // Title
 				local titleLabel = instance.textlabel(row)
 				titleLabel.Name = "Title"
 				titleLabel.Font = guiconfig.Font or Enum.Font.GothamBold
@@ -13637,7 +14165,6 @@ function Chloex:Window(guiconfig)
 				titleLabel.Position = UDim2.new(0, 10, 0, 8)
 				titleLabel.Size = UDim2.new(1, -20, 0, 16)
 
-				-- // Subtitle / Description (optional, multiline wrap support)
 				local subLabel = nil
 				if hasSubtitle then
 					subLabel = instance.textlabel(row)
@@ -13655,7 +14182,6 @@ function Chloex:Window(guiconfig)
 					subLabel.Size = UDim2.new(1, -20, 0, 14)
 				end
 
-				-- // Status / Percentage Label (Opsional, dinonaktifkan secara default)
 				local statusLabel = nil
 				if progressconfig.ShowStatus or progressconfig.ShowPercentage then
 					statusLabel = instance.textlabel(row)
@@ -13671,7 +14197,6 @@ function Chloex:Window(guiconfig)
 					titleLabel.Size = UDim2.new(0.65, -10, 0, 16)
 				end
 
-				-- // Track Container Frame
 				local trackArea = instance.frame(row)
 				trackArea.Name = "TrackArea"
 				trackArea.BackgroundTransparency = 1
@@ -13704,7 +14229,6 @@ function Chloex:Window(guiconfig)
 				row:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateProgressBarLayout)
 				task.defer(updateProgressBarLayout)
 
-				-- // Connecting Line Background
 				local lineBg = instance.frame(trackArea)
 				lineBg.Name = "LineBg"
 				lineBg.AnchorPoint = Vector2.new(0, 0.5)
@@ -13716,7 +14240,6 @@ function Chloex:Window(guiconfig)
 				local lineBgCorner = instance.uicorner(lineBg)
 				lineBgCorner.CornerRadius = UDim.new(0, 2)
 
-				-- // Connecting Line Active Fill
 				local lineFill = instance.frame(lineBg)
 				lineFill.Name = "LineFill"
 				lineFill.Position = UDim2.new(0, 0, 0, 0)
@@ -13902,7 +14425,6 @@ function Chloex:Window(guiconfig)
 						while isAutoRunning do
 							if not row or not row.Parent then break end
 
-							-- // Mulai dari langkah pertama
 							applyStep(1, false)
 							task.wait(0.3)
 							if not isAutoRunning or not row or not row.Parent then break end
@@ -13912,7 +14434,6 @@ function Chloex:Window(guiconfig)
 								if not isAutoRunning or not row or not row.Parent then break end
 								local targetRatio = (s - 1) / (stepCount - 1)
 
-								-- // Garis secara mulus bergerak mengisi ke kanan menuju node berikutnya
 								local fillTween = sv.ts:Create(lineFill, TweenInfo.new(stepDuration, Enum.EasingStyle.Linear), {
 									Size = UDim2.new(targetRatio, 0, 1, 0)
 								})
@@ -13921,7 +14442,6 @@ function Chloex:Window(guiconfig)
 								task.wait(stepDuration)
 								if not isAutoRunning or not row or not row.Parent then break end
 
-								-- // Node menyala dan membesar sesaat saat garis menyentuhnya
 								currentStep = s
 								progressfunc.Value = currentStep
 								updateNodeStyles(s, true)
@@ -13952,10 +14472,10 @@ function Chloex:Window(guiconfig)
 							end
 
 							if not isAutoRunning or not row or not row.Parent then break end
-							task.wait(1.0) -- // Berhenti di milestone reward akhir
+							task.wait(1.0)
 
 							if isAutoRunning and (progressconfig.Loop ~= false) then
-								-- // Reset mulus kembali ke kiri untuk siklus berulang
+
 								local resetTween = sv.ts:Create(lineFill, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 									Size = UDim2.new(0, 0, 1, 0)
 								})
@@ -14081,7 +14601,6 @@ function Chloex:Window(guiconfig)
 				return progressfunc
 			end
 
-			-- // AddDropTracker Element (Item Drops & Material Farm Tracker)
 			function items:AddDropTracker(trackerconfig)
 				trackerconfig = trackerconfig or {}
 				trackerconfig.Title = trackerconfig.Title or "Drop Tracker"
@@ -14111,7 +14630,6 @@ function Chloex:Window(guiconfig)
 				cardStroke.Thickness = 1
 				cardStroke.Transparency = 0.88
 
-				-- // Title
 				local titleLabel = instance.textlabel(card)
 				titleLabel.Name = "Title"
 				titleLabel.Font = guiconfig.Font or Enum.Font.GothamBold
@@ -14123,7 +14641,6 @@ function Chloex:Window(guiconfig)
 				titleLabel.Position = UDim2.new(0, 12, 0, 8)
 				titleLabel.Size = UDim2.new(1, -24, 0, 16)
 
-				-- // Helper: Number comma formatting
 				local function formatValue(val, prefix, suffix)
 					prefix = prefix or ""
 					suffix = suffix or ""
@@ -14138,7 +14655,6 @@ function Chloex:Window(guiconfig)
 				local trackerfunc = {}
 				local itemEntries = {}
 
-				-- // Items List Container
 				local listFrame = instance.frame(card)
 				listFrame.Name = "ItemsList"
 				listFrame.BackgroundTransparency = 1
@@ -14198,7 +14714,6 @@ function Chloex:Window(guiconfig)
 						end
 					end)
 
-					-- // Separator Line (kecuali baris terakhir)
 					if idx < #itemsData then
 						local separator = instance.frame(rowItem)
 						separator.Name = "Separator"
@@ -14274,7 +14789,6 @@ function Chloex:Window(guiconfig)
 				return trackerfunc
 			end
 
-			-- // Aliases for DropTracker
 			function items:AddMaterialTracker(cfg)
 				return items:AddDropTracker(cfg)
 			end
@@ -14785,7 +15299,6 @@ function Chloex:Window(guiconfig)
 		local isEn = (lang == "en")
 		local isId = (lang == "id")
 
-		-- // Tab 1: Information
 		local infoTab = tabs:AddInfoTab({
 			Name = isRu and "Информация" or (isEn and "Information" or "Informasi"),
 			Icon = (guiconfig.Type == 3) and ((guiconfig.HubIcons and (guiconfig.HubIcons.Information or guiconfig.HubIcons.Info or guiconfig.HubIcons.information or guiconfig.HubIcons.info)) or DEFAULT_CONFIG.HubIcons.Information) or nil,
@@ -14807,7 +15320,6 @@ function Chloex:Window(guiconfig)
 			UsersTitle = isRu and "Активные игроки" or (isEn and "Active Users" or "Active Users"),
 		})
 
-		-- // Resolve Update Logs (supports GameId, Folder, PlaceId, URL)
 		local logsSource = guiconfig.Logs or guiconfig.UpdateLogs
 		local resolved = nil
 		if _gInfo.Matched and _gInfo.Matched.Changelogs then
@@ -14839,7 +15351,6 @@ function Chloex:Window(guiconfig)
 			Entries = logEntries,
 		})
 
-		-- // Asynchronously fetch remote update logs if configured (non-blocking)
 		if logsSource then
 			task.spawn(function()
 				local r = nil
@@ -14855,7 +15366,6 @@ function Chloex:Window(guiconfig)
 			end)
 		end
 
-		-- // Tab 2: Game Support (Data-driven via GameSupport.lua)
 		local gamesTab = tabs:AddInfoTab({
 			Name = isRu and "Поддержка игр" or (isEn and "Game Support" or "Game Support"),
 			Icon = (guiconfig.HubIcons and (guiconfig.HubIcons.GameSupport or guiconfig.HubIcons.GameSup or guiconfig.HubIcons.Games or guiconfig.HubIcons.gamesup or guiconfig.HubIcons.gamesupport)) or DEFAULT_CONFIG.HubIcons.GameSupport,
@@ -14916,7 +15426,6 @@ function Chloex:Window(guiconfig)
 			end
 		end
 
-		-- // Tab 3: Discord
 		local discordTab = tabs:AddInfoTab({
 			Name = "Discord",
 			Icon = (guiconfig.HubIcons and (guiconfig.HubIcons.Discord or guiconfig.HubIcons.discord)) or DEFAULT_CONFIG.HubIcons.Discord,
@@ -14925,7 +15434,24 @@ function Chloex:Window(guiconfig)
 		})
 		_defHub.D = discordTab
 
-		-- // Tab 4: Advanced (Optional, toggleable via guiconfig.Advanced)
+		local discordSec = discordTab:AddSection(isRu and "Сообщество Discord" or (isId and "Komunitas Discord" or "Discord Community"), true)
+		_defHub.DiscordCard = discordSec:AddDiscordCard({
+			Type = "ChloeX",
+			Invite = guiconfig.Discord or DEFAULT_CONFIG.Discord,
+		})
+		_defHub.StoreCard = discordSec:AddDiscordCard({
+			Type = "ChloeStore",
+			Invite = guiconfig.DiscordStore or DEFAULT_CONFIG.DiscordStore,
+		})
+		_defHub.UgPhoneCard = discordSec:AddDiscordCard({
+			Type = "UgPhone",
+			Invite = guiconfig.DiscordUgPhone or DEFAULT_CONFIG.DiscordUgPhone,
+		})
+		_defHub.UgPhoneIdCard = discordSec:AddDiscordCard({
+			Type = "UgPhoneID",
+			Invite = guiconfig.DiscordUgPhoneID or DEFAULT_CONFIG.DiscordUgPhoneID or "5cqYn4KPh6",
+		})
+
 		local advTab = nil
 		if guiconfig.Advanced ~= false then
 			advTab = tabs:AddInfoTab({
@@ -14937,7 +15463,6 @@ function Chloex:Window(guiconfig)
 			_defHub.Adv = advTab
 		end
 
-		-- // Tab 5: Engine
 		local engineTab = tabs:AddInfoTab({
 			Name = "Engine",
 			Icon = (guiconfig.HubIcons and (guiconfig.HubIcons.Engine or guiconfig.HubIcons.engine)) or DEFAULT_CONFIG.HubIcons.Engine,
@@ -14953,7 +15478,9 @@ function Chloex:Window(guiconfig)
 			Default = Enum.KeyCode.F3,
 			Callback = function(key)
 				mainToggleKey = key
-				chloex("Main UI Keybind set to: " .. key.Name)
+				if not isDestroyingGui then
+					chloex("Main UI Keybind set to: " .. key.Name)
+				end
 			end,
 		})
 
@@ -14962,7 +15489,9 @@ function Chloex:Window(guiconfig)
 			Default = Enum.KeyCode.F4,
 			Callback = function(key)
 				miniToggleKey = key
-				chloex("Mini UI Keybind set to: " .. key.Name)
+				if not isDestroyingGui then
+					chloex("Mini UI Keybind set to: " .. key.Name)
+				end
 			end,
 		})
 
@@ -14978,16 +15507,25 @@ function Chloex:Window(guiconfig)
 			end,
 		})
 
+		local initialMiniSetup = true
 		engineSec:AddToggle({
 			Title = "Enable Mini UI",
 			Default = isMiniUIEnabled,
 			Callback = function(state)
+				if isDestroyingGui then return end
 				isMiniUIEnabled = state
 				guiconfig.MiniUI = state
 				if setToggleUIMode then
 					setToggleUIMode(state)
 				end
-				if miniHolder then
+				if initialMiniSetup then
+					initialMiniSetup = false
+					return
+				end
+				if lifecycle and lifecycle.isLoadingActive then return end
+				if toggleMiniWindow then
+					toggleMiniWindow(state)
+				elseif miniHolder then
 					miniHolder.Visible = state
 					if state and autoDockMini and updateMiniPosition then
 						updateMiniPosition(true)
@@ -14996,7 +15534,6 @@ function Chloex:Window(guiconfig)
 			end,
 		})
 
-		-- // Priority Loader: Advanced Hub Module
 		if guiconfig.Advanced ~= false and advTab then
 			local hubTabs = {
 				I = infoTab,
@@ -15006,7 +15543,6 @@ function Chloex:Window(guiconfig)
 				E = engineTab,
 			}
 
-			-- // Direct Remote / Local Loader for Advanced Tab (Non-blocking)
 			task.spawn(function()
 				pcall(function()
 					local advUrl = type(guiconfig.Advanced) == "string" and guiconfig.Advanced or DEFAULT_CONFIG.Advanced
@@ -15028,7 +15564,6 @@ function Chloex:Window(guiconfig)
 						end
 					end
 
-					-- // Fallback to local dev server if GitHub file is corrupted or failed to load
 					if not fn then
 						pcall(function()
 							local devHost = (getgenv and getgenv().ChloeHost) or "127.0.0.1:8080"
@@ -15052,7 +15587,6 @@ function Chloex:Window(guiconfig)
 			end)
 		end
 
-		-- // Auto Game Script Execution (if defined in GameSupport)
 		if guiconfig.AutoExecute and _gInfo.Matched and _gInfo.Matched.Script and _gInfo.Matched.Script ~= "" then
 			task.spawn(function()
 				pcall(function()
@@ -15089,12 +15623,6 @@ function Chloex:Window(guiconfig)
 		end
 	end
 
-	function tabs:SetUpdateLogs(newEntries, newTitle)
-		if _defHub.Logs and _defHub.Logs.SetEntries then
-			return _defHub.Logs:SetEntries(newEntries, newTitle)
-		end
-	end
-
 	function tabs:SetHubIcon(tabName, iconId)
 		if not tabName or not iconId then return end
 		local key = string.lower(tostring(tabName))
@@ -15127,16 +15655,16 @@ function Chloex:Window(guiconfig)
 	end
 
 	function tabs:SetUpdateLogs(newEntries, newTitle)
-		if defaultUpdateLogsObj and defaultUpdateLogsObj.SetEntries then
-			return defaultUpdateLogsObj:SetEntries(newEntries, newTitle)
+		local logObj = _defHub.Logs or defaultUpdateLogsObj
+		if logObj and logObj.SetEntries then
+			return logObj:SetEntries(newEntries, newTitle)
 		end
 	end
 
 	function tabs:GetUpdateLogs()
-		return defaultUpdateLogsObj
+		return _defHub.Logs or defaultUpdateLogsObj
 	end
 
-	-- // Build default Hub tabs immediately so they are instantly accessible
 	if not hasActiveInfoTab and guiconfig.DefaultInfoTabs ~= false then
 		buildDefaultInfoTabs()
 	end
@@ -15169,8 +15697,6 @@ function Chloex:Window(guiconfig)
 			end)
 		end
 	end)
-
-	
 
 	tabs.Config = config
 	tabs.DestroyGui = function()
