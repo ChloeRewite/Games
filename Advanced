@@ -86,7 +86,6 @@ return function(Window, Tabs)
 		blockscanconn = nil,
 	}
 
-	-- // Setup Sections in Tabs (Strictly Global Section Scoping)
 	Tabs = Tabs or {}
 	if not Tabs.D and not Tabs.I and Window and Window.AddInfoTab then
 		Tabs.D = Window:AddInfoTab({
@@ -103,7 +102,6 @@ return function(Window, Tabs)
 	afkmanager = Tabs.Adv and Tabs.Adv:AddSection("AFK Manager", false)
 	servermanager = Tabs.Adv and Tabs.Adv:AddSection("Server Manager", false)
 
-	-- // TAB: DISCORD (Chloe X Community & Partners)
 	if informationmanager then
 		informationmanager:AddPanel({ Type = "Chloe" })
 
@@ -176,7 +174,6 @@ return function(Window, Tabs)
 		return
 	end
 
-	-- // TAB: ADVANCED - ANTI-STUTTER PERFORMANCE & RENDER BLOCK ENGINE
 	local fcRunning = false
 	local autoCleanToggleObj
 	local renderBlockToggleObj
@@ -335,7 +332,6 @@ return function(Window, Tabs)
 		return false
 	end
 
-	-- // True Rata Kiri Engine Override (Esc Menu QualityLevel1 + FFlags + Voxel + Streaming)
 	local function applyPotatoGraphicsEngine()
 		pcall(function()
 			local ugs = UserSettings():GetService("UserGameSettings")
@@ -419,7 +415,6 @@ return function(Window, Tabs)
 		end)
 	end
 
-	-- // Spatial 3D Render Block & World-UI Limiter (Default = 100 Blocks, Rotated World AABB)
 	local BLOCK_CELL_SIZE = 16
 	local worldGuis = {}
 	local worldGuiOrig = setmetatable({}, { __mode = "k" })
@@ -737,7 +732,6 @@ return function(Window, Tabs)
 		end)
 	end
 
-	-- // Single-Instance Zero-Closure Optimizer
 	local function optimizeCharacterFast(char, isExtended)
 		if not char then
 			return
@@ -929,7 +923,6 @@ return function(Window, Tabs)
 		return false
 	end
 
-	-- // Micro-Batched Real-Time Descendant Cleaner (Zero Lag on Spawned VFX / Streamed Parts)
 	local function startAutoCleanStream()
 		if cache.descendantconn then
 			return
@@ -980,7 +973,6 @@ return function(Window, Tabs)
 		end
 	end
 
-	-- // Single-Pass Time-Sliced Map Reducer (2ms & 45-Mutation Budget Per Frame = 0 Freeze / 0 Stutter)
 	local isReducingNow = false
 
 	local function runSmoothReducePass(forceRecommended)
@@ -1090,7 +1082,6 @@ return function(Window, Tabs)
 		end
 	end
 
-	-- // Performance Manager UI
 	performancemanager:AddDropdown({
 		Title = "Reduce Map Method",
 		Multi = false,
@@ -1272,7 +1263,6 @@ return function(Window, Tabs)
 		end,
 	})
 
-	-- // Player Manager
 	playermanager:AddToggle({
 		Title = "Noclip",
 		Content = "Walk through objects",
@@ -1421,7 +1411,6 @@ return function(Window, Tabs)
 		end,
 	})
 
-	-- // Fly Manager
 	do
 		local flyConnection
 		local flyVelocity
@@ -1577,7 +1566,6 @@ return function(Window, Tabs)
 		})
 	end
 
-	-- // Freecam Manager
 	local camera = workspace.CurrentCamera
 	fcRunning = false
 	local lastFreecamCF
@@ -2020,7 +2008,6 @@ return function(Window, Tabs)
 		end,
 	})
 
-	-- // AFK Manager
 	afkmanager:AddToggle({
 		Title = "Anti Gameplay Paused",
 		Default = true,
@@ -2079,7 +2066,6 @@ return function(Window, Tabs)
 		end,
 	})
 
-	-- // Server Manager
 	servermanager:AddButton({
 		Title = "Rejoin Server",
 		Callback = function()
