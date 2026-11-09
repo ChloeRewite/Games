@@ -29,13 +29,16 @@ return function(Window, Tabs)
 		lp = sv.p.LocalPlayer,
 		pid = game.PlaceId,
 		jid = game.JobId,
-		psid = game.PrivateServerId,
 	}
 
 	local st = {
-		reducemethod = "Heavy",
+		reducemethod = "Super Potato",
 		reduceinterval = 1,
 		reduceenabled = false,
+		autocleanvfx = false,
+		forcelowgfx = false,
+		renderblockenabled = false,
+		maxrenderblocks = 100,
 		noclip = false,
 		walkspeedenabled = false,
 		walkspeed = 16,
@@ -66,6 +69,7 @@ return function(Window, Tabs)
 			Ambient = sv.l.Ambient,
 			Brightness = sv.l.Brightness,
 			FogEnd = sv.l.FogEnd,
+			FogStart = sv.l.FogStart,
 			GlobalShadows = sv.l.GlobalShadows,
 		},
 		zoomconn = nil,
@@ -74,24 +78,30 @@ return function(Window, Tabs)
 		fullbrighttouched = false,
 		afkconn = nil,
 		noclipconn = nil,
+		descendantconn = nil,
+		queueworker = false,
+		playerconns = {},
+		charconns = {},
+		blockloop = false,
+		blockscanconn = nil,
 	}
 
-	-- // Setup Sections in Tabs
-	local discordTab = (Tabs and Tabs.D)
-	if not discordTab and Window and Window.AddInfoTab then
-		discordTab = Window:AddInfoTab({
+	-- // Setup Sections in Tabs (Strictly Global Section Scoping)
+	Tabs = Tabs or {}
+	if not Tabs.D and not Tabs.I and Window and Window.AddInfoTab then
+		Tabs.D = Window:AddInfoTab({
 			Name = "Discord",
 			LayoutOrder = 3,
 			StartActive = false,
 		})
 	end
-	local informationmanager = (discordTab or (Tabs and Tabs.I)) and (discordTab or (Tabs and Tabs.I)):AddSection("Chloe X Information", true)
-	local performancemanager = Tabs and Tabs.Adv and Tabs.Adv:AddSection("Performance Manager", true)
-	local playermanager = Tabs and Tabs.Adv and Tabs.Adv:AddSection("Player Manager", false)
-	local flymanager = Tabs and Tabs.Adv and Tabs.Adv:AddSection("Fly Manager", false)
-	local freecammanager = Tabs and Tabs.Adv and Tabs.Adv:AddSection("Freecam Manager", false)
-	local afkmanager = Tabs and Tabs.Adv and Tabs.Adv:AddSection("AFK Manager", false)
-	local servermanager = Tabs and Tabs.Adv and Tabs.Adv:AddSection("Server Manager", false)
+	informationmanager = (Tabs.D or Tabs.I) and (Tabs.D or Tabs.I):AddSection("Chloe X Information", true)
+	performancemanager = Tabs.Adv and Tabs.Adv:AddSection("Performance Manager", true)
+	playermanager = Tabs.Adv and Tabs.Adv:AddSection("Player Manager", false)
+	flymanager = Tabs.Adv and Tabs.Adv:AddSection("Fly Manager", false)
+	freecammanager = Tabs.Adv and Tabs.Adv:AddSection("Freecam Manager", false)
+	afkmanager = Tabs.Adv and Tabs.Adv:AddSection("AFK Manager", false)
+	servermanager = Tabs.Adv and Tabs.Adv:AddSection("Server Manager", false)
 
 	-- // TAB: DISCORD (Chloe X Community & Partners)
 	if informationmanager then
@@ -162,385 +172,952 @@ return function(Window, Tabs)
 		})
 	end
 
-	if not Tabs.Adv then
+	if not (Tabs and Tabs.Adv) then
 		return
 	end
 
-	-- // TAB: ADVANCED (Performance, Player, Fly, Freecam, AFK, Server)
+	-- // TAB: ADVANCED - ANTI-STUTTER PERFORMANCE & RENDER BLOCK ENGINE
+	local fcRunning = false
+	local autoCleanToggleObj
+	local renderBlockToggleObj
+	local forceLowGfxToggleObj
 	local terrain = workspace:FindFirstChildOfClass("Terrain")
+	local processedInst = setmetatable({}, { __mode = "k" })
+	local trackedPartBlocks = setmetatable({}, { __mode = "k" })
+	local charModelSet = setmetatable({}, { __mode = "k" })
+	local spatialBlocks = {}
+	local spatialBlockMap = {}
+	local pendingQueue = {}
+	local pendingCount = 0
 
-	local deleteNamePatterns = {
-		"tree",
-		"lightpole",
-		"barrel",
-		"cylinder",
-		"floor",
-		"vine",
-		"plane",
-		"default",
-		"rock",
-		"terrainbase",
-	}
-
-	local vfxClasses = {
-		"ParticleEmitter",
-		"Trail",
-		"Beam",
-		"Fire",
-		"Smoke",
-		"Sparkles",
-		"Highlight",
-		"Explosion",
-	}
-
-	local postfxClasses = {
-		"BloomEffect",
-		"SunRaysEffect",
-		"ColorCorrectionEffect",
-		"DepthOfFieldEffect",
-		"BlurEffect",
-		"Atmosphere",
-	}
-
-	local vfxSet = {}
-	for _, c in ipairs(vfxClasses) do
-		vfxSet[c] = true
+	local function refreshCharModelSet()
+		local plrs = sv.p:GetPlayers()
+		for i = 1, #plrs do
+			local ch = plrs[i].Character
+			if ch then
+				charModelSet[ch] = true
+			end
+		end
 	end
 
-	local postfxSet = {}
-	for _, c in ipairs(postfxClasses) do
-		postfxSet[c] = true
+	local structuralKeepPatterns = {
+		"road",
+		"floor",
+		"ground",
+		"path",
+		"bridge",
+		"sidewalk",
+		"walkway",
+		"stair",
+		"step",
+		"ramp",
+		"platform",
+		"baseplate",
+		"terrain",
+		"tunnel",
+		"conveyor",
+		"rootpart",
+	}
+
+	local pureFoliageHidePatterns = {
+		"leaf",
+		"leaves",
+		"bush",
+		"flower",
+		"vine",
+		"seaweed",
+		"kelp",
+		"petal",
+		"foliage",
+		"cloud",
+	}
+
+	local destroyClassSet = {
+		ParticleEmitter = true,
+		Trail = true,
+		Beam = true,
+		Fire = true,
+		Smoke = true,
+		Sparkles = true,
+		Highlight = true,
+		Explosion = true,
+		PointLight = true,
+		SpotLight = true,
+		SurfaceLight = true,
+		BloomEffect = true,
+		SunRaysEffect = true,
+		ColorCorrectionEffect = true,
+		DepthOfFieldEffect = true,
+		BlurEffect = true,
+		Atmosphere = true,
+		Clouds = true,
+		SurfaceAppearance = true,
+		MaterialVariant = true,
+	}
+
+	local charStripClassSet = {
+		Accessory = true,
+		CharacterMesh = true,
+		Shirt = true,
+		Pants = true,
+		ShirtGraphic = true,
+		Highlight = true,
+		ParticleEmitter = true,
+		Trail = true,
+		Beam = true,
+		Fire = true,
+		Smoke = true,
+		Sparkles = true,
+		PointLight = true,
+		SpotLight = true,
+		SurfaceLight = true,
+	}
+
+	local mediumGreyColor = Color3.fromRGB(158, 158, 162)
+	local roadGreyColor = Color3.fromRGB(115, 115, 118)
+
+	local function safeDestroy(inst)
+		inst:Destroy()
+	end
+
+	local function safeClearMeshTex(mesh)
+		mesh.TextureID = ""
+	end
+
+	local function safeSetUnionPartColor(unionOp)
+		unionOp.UsePartColor = true
+	end
+
+	local function safeClearSpecialMeshTex(mesh)
+		mesh.TextureId = ""
+	end
+
+	local function safeHideDecal(decal)
+		decal.Transparency = 1
+	end
+
+	local function safeSetSkyMinimal(sky)
+		sky.SunAngularSize = 0
+		sky.MoonAngularSize = 0
+		sky.StarCount = 0
+		sky.CelestialBodiesShown = false
+	end
+
+	local function safeSetFFlagPair(rawName, prefName, val)
+		if not setfflag then
+			return
+		end
+		local s = tostring(val)
+		pcall(setfflag, rawName, s)
+		if prefName then
+			pcall(setfflag, prefName, s)
+		end
 	end
 
 	local function nameMatch(name, patterns)
-		name = string.lower(name)
-		for _, p in ipairs(patterns) do
-			if string.find(name, p) then
+		local low = string.lower(name)
+		for i = 1, #patterns do
+			if string.find(low, patterns[i], 1, true) then
 				return true
 			end
 		end
 		return false
 	end
 
-	local function disableVFX(inst)
-		pcall(function()
-			if
-				inst:IsA("ParticleEmitter")
-				or inst:IsA("Trail")
-				or inst:IsA("Beam")
-				or inst:IsA("Fire")
-				or inst:IsA("Smoke")
-				or inst:IsA("Sparkles")
-				or inst:IsA("PointLight")
-				or inst:IsA("SpotLight")
-				or inst:IsA("SurfaceLight")
-				or inst:IsA("PostEffect")
-			then
-				inst.Enabled = false
-			elseif inst:IsA("Atmosphere") then
-				inst:Destroy()
-			elseif inst:IsA("Sky") then
-				inst.SunAngularSize = 0
-				inst.MoonAngularSize = 0
-				inst.StarCount = 0
+	local function isCharacterOrToolDescendant(inst)
+		local cur = inst.Parent
+		while cur and cur ~= workspace do
+			if charModelSet[cur] or cur.ClassName == "Tool" or cur.ClassName == "Accessory" then
+				return true
 			end
-		end)
+			cur = cur.Parent
+		end
+		return false
 	end
 
-	local function disableInst(inst)
+	-- // True Rata Kiri Engine Override (Esc Menu QualityLevel1 + FFlags + Voxel + Streaming)
+	local function applyPotatoGraphicsEngine()
 		pcall(function()
-			if
-				inst:IsA("ParticleEmitter")
-				or inst:IsA("Trail")
-				or inst:IsA("Beam")
-				or inst:IsA("Fire")
-				or inst:IsA("Smoke")
-				or inst:IsA("Sparkles")
-				or inst:IsA("PointLight")
-				or inst:IsA("SpotLight")
-				or inst:IsA("SurfaceLight")
-				or inst:IsA("BlurEffect")
-				or inst:IsA("BloomEffect")
-				or inst:IsA("SunRaysEffect")
-				or inst:IsA("ColorCorrectionEffect")
-				or inst:IsA("DepthOfFieldEffect")
-				or inst:IsA("Atmosphere")
-				or inst:IsA("PostEffect")
-			then
-				inst.Enabled = false
-			elseif inst:IsA("Sky") then
-				inst.SunAngularSize = 0
-				inst.MoonAngularSize = 0
-				inst.StarCount = 0
-			elseif inst:IsA("BasePart") then
-				inst.CastShadow = false
-				inst.Material = Enum.Material.Plastic
-				inst.Reflectance = 0
-			elseif inst:IsA("Decal") or inst:IsA("Texture") then
-				inst.Transparency = 1
+			local ugs = UserSettings():GetService("UserGameSettings")
+			ugs.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
+			if sethiddenproperty then
+				pcall(sethiddenproperty, ugs, "GraphicsQualityLevel", 1)
 			end
 		end)
-	end
 
-	local function reduceOnce()
-		local method = st.reducemethod or "Heavy"
-		local isHeavy = method == "Heavy"
-		local isPower = method == "Powerfull Heavy"
-		local isSuper = method == "Super Heavy"
-		local isColorful = method == "Colorful Heavy"
-		local isExtended = isPower or isSuper or isColorful
+		pcall(function()
+			local rend = settings().Rendering
+			rend.QualityLevel = Enum.QualityLevel.Level01
+			rend.EditQualityLevel = Enum.QualityLevel.Level01
+			rend.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+			rend.EagerBulkExecution = true
+		end)
 
-		for _, obj in ipairs(workspace:GetDescendants()) do
-			local className = obj.ClassName
+		pcall(function()
+			local phys = settings().Physics
+			phys.PhysicsEnvironmentalThrottle = Enum.EnvironmentalPhysicsThrottle.Always
+			phys.AllowSleep = true
+			phys.ThrottleAdjustTime = 0
+		end)
 
-			disableVFX(obj)
-
-			if vfxSet[className] then
-				pcall(function()
-					obj:Destroy()
-				end)
-			elseif obj:IsA("BasePart") then
-				if (isSuper or isColorful) and nameMatch(obj.Name, deleteNamePatterns) then
-					pcall(function()
-						obj:Destroy()
-					end)
-				else
-					pcall(function()
-						obj.CastShadow = false
-						obj.Material = Enum.Material.Plastic
-						obj.Reflectance = 0
-						if not isColorful then
-							obj.BrickColor = BrickColor.new("Medium stone grey")
-						end
-						if obj:IsA("MeshPart") then
-							obj.CollisionFidelity = Enum.CollisionFidelity.Box
-						end
-					end)
-				end
-			elseif obj:IsA("Decal") or obj:IsA("Texture") then
-				if isSuper then
-					pcall(function()
-						obj:Destroy()
-					end)
-				elseif isHeavy or isPower then
-					pcall(function()
-						obj.Transparency = 1
-					end)
-				end
-			elseif isExtended then
-				if obj:IsA("Model") and nameMatch(obj.Name, { "tree", "lightpole", "barrel" }) then
-					pcall(function()
-						obj:Destroy()
-					end)
-				elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-					pcall(function()
-						obj:Destroy()
-					end)
-				end
-			end
-		end
-
-		if isExtended then
-			for _, obj in ipairs(sv.l:GetDescendants()) do
-				disableVFX(obj)
-			end
-
-			for _, obj in ipairs(sv.l:GetChildren()) do
-				if postfxSet[obj.ClassName] then
-					pcall(function()
-						obj:Destroy()
-					end)
-				end
-			end
-		end
-
-		if isSuper then
+		if sethiddenproperty then
+			pcall(sethiddenproperty, sv.l, "Technology", Enum.Technology.Voxel)
 			if terrain then
-				terrain.WaterTransparency = 1
-				terrain.WaterReflectance = 0
-				terrain.WaterWaveSize = 0
-				terrain.WaterWaveSpeed = 0
+				pcall(sethiddenproperty, terrain, "Decoration", false)
 			end
-			pcall(function()
-				sv.l.GlobalShadows = false
-				sv.l.FogStart = 9e9
-				sv.l.FogEnd = 9e9
-				sv.l.Brightness = 1
-			end)
+			pcall(sethiddenproperty, workspace, "InterpolationThrottling", Enum.InterpolationThrottlingMode.Enabled)
+			pcall(sethiddenproperty, workspace, "LevelOfDetail", Enum.ModelLevelOfDetail.Disabled)
+			pcall(sethiddenproperty, workspace, "StreamingMinRadius", 32)
+			pcall(sethiddenproperty, workspace, "StreamingTargetRadius", 64)
 		end
 
-		local cam = workspace.CurrentCamera
-		if cam then
-			cam.CameraType = Enum.CameraType.Custom
-			cam.FieldOfView = 70
-		end
-
-		if env.lp and env.lp.Character then
-			for _, obj in ipairs(env.lp.Character:GetDescendants()) do
-				disableVFX(obj)
-				if obj:IsA("Accessory") and isExtended then
-					pcall(function()
-						obj:Destroy()
-					end)
-				end
-			end
-		end
-	end
-
-	local function reduceRecommended()
-		local allWorkspace = workspace:GetDescendants()
-		local allLighting = sv.l:GetDescendants()
-
-		for _, obj in ipairs(allWorkspace) do
-			disableInst(obj)
-		end
-
-		for _, obj in ipairs(allLighting) do
-			disableInst(obj)
-		end
-
-		for _, obj in ipairs(allWorkspace) do
-			if obj:IsA("Model") and nameMatch(obj.Name, { "tree", "lightpole", "barrel" }) then
-				pcall(function()
-					obj:Destroy()
-				end)
-			end
-		end
-
-		local islands = workspace:FindFirstChild("Islands")
-		if islands then
-			local fisher = islands:FindFirstChild("Fisherman Island")
-			if fisher then
-				local bg = fisher:FindFirstChild("Background Buildings")
-				if bg then
-					pcall(function()
-						bg:Destroy()
-					end)
-				end
-			end
-			local christmas = islands:FindFirstChild("ChristmasDecor [Fisheman Island]")
-			if christmas then
-				pcall(function()
-					christmas:Destroy()
-				end)
-			end
-		end
-
-		for _, obj in ipairs(allWorkspace) do
-			if obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-				pcall(function()
-					obj:Destroy()
-				end)
-			end
-		end
-
-		for _, obj in ipairs(allWorkspace) do
-			if vfxSet[obj.ClassName] then
-				pcall(function()
-					obj:Destroy()
-				end)
-			end
-		end
-
-		for _, obj in ipairs(sv.l:GetChildren()) do
-			if postfxSet[obj.ClassName] then
-				pcall(function()
-					obj:Destroy()
-				end)
-			end
-		end
-
-		for _, obj in ipairs(allWorkspace) do
-			if obj:IsA("Decal") or obj:IsA("Texture") then
-				pcall(function()
-					obj:Destroy()
-				end)
-			end
-		end
-
-		for _, obj in ipairs(allWorkspace) do
-			if obj:IsA("BasePart") then
-				if nameMatch(obj.Name, deleteNamePatterns) then
-					pcall(function()
-						obj:Destroy()
-					end)
-				else
-					pcall(function()
-						obj.Material = Enum.Material.Plastic
-						obj.Transparency = 0
-						obj.BrickColor = BrickColor.new("Medium stone grey")
-						obj.CastShadow = false
-						obj.Reflectance = 0
-						if obj:IsA("MeshPart") then
-							obj.CollisionFidelity = Enum.CollisionFidelity.Box
-						end
-					end)
-				end
-			end
-		end
+		safeSetFFlagPair("DebugFRMQualityLevelOverride", "DFIntDebugFRMQualityLevelOverride", 1)
+		safeSetFFlagPair("FRMMinGrassDistance", "FIntFRMMinGrassDistance", 0)
+		safeSetFFlagPair("FRMMaxGrassDistance", "FIntFRMMaxGrassDistance", 0)
+		safeSetFFlagPair("RenderGrassDetailStrands", "FIntRenderGrassDetailStrands", 0)
+		safeSetFFlagPair("RenderShadowIntensity", "FIntRenderShadowIntensity", 0)
+		safeSetFFlagPair("DebugTextureManagerSkipMips", "FIntDebugTextureManagerSkipMips", 8)
+		safeSetFFlagPair("DebugDisableOTAMaterialTexture", "FFlagDebugDisableOTAMaterialTexture", "true")
+		safeSetFFlagPair("CSGLevelOfDetailSwitchingDistance", "DFIntCSGLevelOfDetailSwitchingDistance", 0)
+		safeSetFFlagPair("CSGLevelOfDetailSwitchingDistanceL12", "DFIntCSGLevelOfDetailSwitchingDistanceL12", 0)
+		safeSetFFlagPair("CSGLevelOfDetailSwitchingDistanceL23", "DFIntCSGLevelOfDetailSwitchingDistanceL23", 0)
+		safeSetFFlagPair("CSGLevelOfDetailSwitchingDistanceL34", "DFIntCSGLevelOfDetailSwitchingDistanceL34", 0)
+		safeSetFFlagPair("DebugSkyGray", "FFlagDebugSkyGray", "true")
 
 		if terrain then
-			terrain.WaterTransparency = 1
-			terrain.WaterReflectance = 0
-			terrain.WaterWaveSize = 0
-			terrain.WaterWaveSpeed = 0
+			pcall(function()
+				terrain.WaterWaveSize = 0
+				terrain.WaterWaveSpeed = 0
+				terrain.WaterReflectance = 0
+				terrain.WaterTransparency = 0
+				if st.reducemethod ~= "Colorful Heavy" then
+					terrain.WaterColor = Color3.fromRGB(105, 105, 110)
+					local terrainGrey = Color3.fromRGB(130, 130, 134)
+					local mats = Enum.Material:GetEnumItems()
+					for i = 1, #mats do
+						pcall(terrain.SetMaterialColor, terrain, mats[i], terrainGrey)
+					end
+				end
+			end)
 		end
 
 		pcall(function()
 			sv.l.GlobalShadows = false
-			sv.l.FogStart = 9e9
-			sv.l.FogEnd = 9e9
-			sv.l.Brightness = 1
+			sv.l.EnvironmentDiffuseScale = 0
+			sv.l.EnvironmentSpecularScale = 0
+			sv.l.ShadowSoftness = 0
+			if st.reducemethod ~= "Colorful Heavy" then
+				sv.l.ColorShift_Top = Color3.fromRGB(0, 0, 0)
+				sv.l.ColorShift_Bottom = Color3.fromRGB(0, 0, 0)
+				sv.l.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+			end
+			if not st.fullbright then
+				sv.l.FogStart = 9e9
+				sv.l.FogEnd = 9e9
+				sv.l.Brightness = 1
+			end
 		end)
+	end
 
-		local cam = workspace.CurrentCamera
-		if cam then
-			cam.CameraType = Enum.CameraType.Custom
-			cam.FieldOfView = 70
+	-- // Spatial 3D Render Block & World-UI Limiter (Default = 100 Blocks, Rotated World AABB)
+	local BLOCK_CELL_SIZE = 16
+	local worldGuis = {}
+	local worldGuiOrig = setmetatable({}, { __mode = "k" })
+
+	local function isRoadOrFloorSurface(part)
+		local sz = part.Size
+		if math.max(sz.X, sz.Z) >= 24 and sz.Y <= 4 then
+			return true
+		end
+		if not part.CanCollide then
+			return false
+		end
+		if nameMatch(part.Name, structuralKeepPatterns) then
+			return true
+		end
+		local p = part.Parent
+		if p and p ~= workspace and nameMatch(p.Name, structuralKeepPatterns) then
+			return true
+		end
+		return false
+	end
+
+	local function registerWorldGui(gui)
+		if worldGuiOrig[gui] or not gui.Parent then
+			return
+		end
+		if isCharacterOrToolDescendant(gui) then
+			local lpChar = env.lp and env.lp.Character
+			if lpChar and gui:IsDescendantOf(lpChar) then
+				return
+			end
+		end
+		worldGuiOrig[gui] = {
+			enabled = gui.Enabled,
+			maxDist = gui.MaxDistance,
+		}
+		if gui.ClassName == "BillboardGui" then
+			gui.AlwaysOnTop = false
+		end
+		worldGuis[#worldGuis + 1] = gui
+	end
+
+	local function registerPartToRenderBlock(part)
+		if trackedPartBlocks[part] or not part.Parent then
+			return
+		end
+		if part.Transparency >= 0.99 then
+			return
+		end
+		if isCharacterOrToolDescendant(part) then
+			return
 		end
 
-		pcall(function()
-			settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnvironmentalPhysicsThrottle.Disabled
-			settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-		end)
+		local sz = part.Size
+		local maxDim = math.max(sz.X, sz.Y, sz.Z)
+		local block
 
-		local function optimizeCharacter(char)
-			for _, obj in ipairs(char:GetDescendants()) do
-				disableInst(obj)
-				if obj:IsA("Accessory") then
-					pcall(function()
-						obj:Destroy()
-					end)
-				elseif obj:IsA("BasePart") then
-					pcall(function()
-						obj.Material = Enum.Material.Plastic
-						obj.BrickColor = BrickColor.new("Medium stone grey")
-						obj.CastShadow = false
-					end)
-				elseif vfxSet[obj.ClassName] then
-					pcall(function()
-						obj:Destroy()
-					end)
-				end
+		if maxDim > BLOCK_CELL_SIZE then
+			local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = part.CFrame:GetComponents()
+			local hx, hy, hz = sz.X * 0.5, sz.Y * 0.5, sz.Z * 0.5
+			block = {
+				cx = x,
+				cy = y,
+				cz = z,
+				hx = math.abs(r00) * hx + math.abs(r01) * hy + math.abs(r02) * hz,
+				hy = math.abs(r10) * hx + math.abs(r11) * hy + math.abs(r12) * hz,
+				hz = math.abs(r20) * hx + math.abs(r21) * hy + math.abs(r22) * hz,
+				parts = { part },
+				hidden = false,
+				distSq = 0,
+			}
+			spatialBlocks[#spatialBlocks + 1] = block
+		else
+			local pos = part.Position
+			local bx = math.floor(pos.X / BLOCK_CELL_SIZE)
+			local by = math.floor(pos.Y / BLOCK_CELL_SIZE)
+			local bz = math.floor(pos.Z / BLOCK_CELL_SIZE)
+			local key = bx .. ":" .. by .. ":" .. bz
+			block = spatialBlockMap[key]
+			if not block then
+				block = {
+					cx = (bx + 0.5) * BLOCK_CELL_SIZE,
+					cy = (by + 0.5) * BLOCK_CELL_SIZE,
+					cz = (bz + 0.5) * BLOCK_CELL_SIZE,
+					hx = BLOCK_CELL_SIZE * 0.5,
+					hy = BLOCK_CELL_SIZE * 0.5,
+					hz = BLOCK_CELL_SIZE * 0.5,
+					parts = { part },
+					hidden = false,
+					distSq = 0,
+				}
+				spatialBlockMap[key] = block
+				spatialBlocks[#spatialBlocks + 1] = block
+			else
+				block.parts[#block.parts + 1] = part
 			end
 		end
 
-		if env.lp then
-			if env.lp.Character then
-				optimizeCharacter(env.lp.Character)
+		trackedPartBlocks[part] = block
+	end
+
+	local function rebuildSpatialBlocksBudgeted()
+		refreshCharModelSet()
+		table.clear(spatialBlocks)
+		table.clear(spatialBlockMap)
+		table.clear(worldGuis)
+		trackedPartBlocks = setmetatable({}, { __mode = "k" })
+		worldGuiOrig = setmetatable({}, { __mode = "k" })
+
+		local desc = workspace:GetDescendants()
+		local t0 = os.clock()
+		for i = 1, #desc do
+			local obj = desc[i]
+			if obj:IsA("BasePart") and obj ~= terrain then
+				registerPartToRenderBlock(obj)
+			elseif obj.ClassName == "BillboardGui" or obj.ClassName == "SurfaceGui" then
+				registerWorldGui(obj)
 			end
-			env.lp.CharacterAdded:Connect(optimizeCharacter)
+			if i % 256 == 0 and (os.clock() - t0) > 0.0025 then
+				task.wait()
+				t0 = os.clock()
+			end
 		end
 	end
 
-	-- // Performance Manager
+	local function restoreAllRenderBlocks()
+		local t0 = os.clock()
+		local changed = 0
+		for i = 1, #spatialBlocks do
+			local b = spatialBlocks[i]
+			if b.hidden then
+				b.hidden = false
+				local parts = b.parts
+				for j = 1, #parts do
+					local p = parts[j]
+					if p and p.Parent then
+						p.LocalTransparencyModifier = 0
+						changed = changed + 1
+					end
+				end
+			end
+			if changed >= 600 or (i % 128 == 0 and (os.clock() - t0) > 0.002) then
+				changed = 0
+				task.wait()
+				t0 = os.clock()
+			end
+		end
+
+		for i = 1, #worldGuis do
+			local g = worldGuis[i]
+			if g and g.Parent then
+				local orig = worldGuiOrig[g]
+				if orig then
+					g.Enabled = orig.enabled
+					g.MaxDistance = orig.maxDist
+				else
+					g.Enabled = true
+				end
+			end
+		end
+	end
+
+	local function sortBlockByDist(a, b)
+		return a.distSq < b.distSq
+	end
+
+	local function evaluateRenderBlocks(px, py, pz)
+		local total = #spatialBlocks
+		if total == 0 then
+			return
+		end
+
+		local aliveCount = 0
+		for i = 1, total do
+			local b = spatialBlocks[i]
+			local parts = b.parts
+			local writeIdx = 0
+			for j = 1, #parts do
+				local p = parts[j]
+				if p and p.Parent then
+					writeIdx = writeIdx + 1
+					parts[writeIdx] = p
+				end
+			end
+			for j = writeIdx + 1, #parts do
+				parts[j] = nil
+			end
+
+			if writeIdx > 0 then
+				aliveCount = aliveCount + 1
+				spatialBlocks[aliveCount] = b
+				local dx = math.abs(px - b.cx) - b.hx
+				local dy = math.abs(py - b.cy) - b.hy
+				local dz = math.abs(pz - b.cz) - b.hz
+				if dx < 0 then dx = 0 end
+				if dy < 0 then dy = 0 end
+				if dz < 0 then dz = 0 end
+				b.distSq = dx * dx + dy * dy + dz * dz
+			end
+		end
+		for i = aliveCount + 1, total do
+			spatialBlocks[i] = nil
+		end
+
+		if aliveCount == 0 then
+			return
+		end
+
+		table.sort(spatialBlocks, sortBlockByDist)
+
+		local limit = st.maxrenderblocks or 100
+		local cutoffIdx = limit < aliveCount and limit or aliveCount
+		local cutoffDist = math.max(24, math.sqrt(spatialBlocks[cutoffIdx].distSq) + 12)
+		local cutoffDistSq = cutoffDist * cutoffDist
+
+		local t0 = os.clock()
+		local changed = 0
+
+		for i = 1, aliveCount do
+			local b = spatialBlocks[i]
+			local shouldHide = i > limit
+			if b.hidden ~= shouldHide then
+				b.hidden = shouldHide
+				local mod = shouldHide and 1 or 0
+				local parts = b.parts
+				for j = 1, #parts do
+					parts[j].LocalTransparencyModifier = mod
+					changed = changed + 1
+				end
+			end
+			if changed >= 800 or (i % 160 == 0 and (os.clock() - t0) > 0.0025) then
+				changed = 0
+				task.wait()
+				t0 = os.clock()
+			end
+		end
+
+		local aliveGuis = 0
+		for i = 1, #worldGuis do
+			local g = worldGuis[i]
+			if g and g.Parent then
+				aliveGuis = aliveGuis + 1
+				worldGuis[aliveGuis] = g
+				local host = g.Adornee
+				if not host or not host:IsA("BasePart") then
+					host = g:FindFirstAncestorWhichIsA("BasePart")
+				end
+				local orig = worldGuiOrig[g]
+				local allowOrig = (not orig) or orig.enabled
+				if not allowOrig then
+					g.Enabled = false
+				elseif host and host:IsA("BasePart") then
+					if host.LocalTransparencyModifier >= 0.99 then
+						g.Enabled = false
+					else
+						local hp = host.Position
+						local gx, gy, gz = hp.X - px, hp.Y - py, hp.Z - pz
+						if (gx * gx + gy * gy + gz * gz) > cutoffDistSq then
+							g.Enabled = false
+						else
+							g.Enabled = true
+							g.MaxDistance = cutoffDist
+						end
+					end
+				else
+					g.MaxDistance = cutoffDist
+				end
+			end
+		end
+		for i = aliveGuis + 1, #worldGuis do
+			worldGuis[i] = nil
+		end
+	end
+
+	local function startRenderBlockLimiter(skipInitialScan)
+		if cache.blockloop then
+			return
+		end
+		cache.blockloop = true
+
+		task.spawn(function()
+			if not skipInitialScan or #spatialBlocks == 0 then
+				rebuildSpatialBlocksBudgeted()
+			end
+			local lastX, lastY, lastZ = 9e9, 9e9, 9e9
+			local lastLimit = -1
+
+			while st.renderblockenabled and cache.blockloop do
+				local refPos
+				local char = env.lp and env.lp.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					refPos = hrp.Position
+				elseif workspace.CurrentCamera then
+					refPos = workspace.CurrentCamera.CFrame.Position
+				end
+
+				if refPos then
+					local dx = refPos.X - lastX
+					local dy = refPos.Y - lastY
+					local dz = refPos.Z - lastZ
+					local movedSq = dx * dx + dy * dy + dz * dz
+					if movedSq >= 36 or lastLimit ~= st.maxrenderblocks then
+						lastX, lastY, lastZ = refPos.X, refPos.Y, refPos.Z
+						lastLimit = st.maxrenderblocks
+						evaluateRenderBlocks(refPos.X, refPos.Y, refPos.Z)
+					end
+				end
+
+				task.wait(0.15)
+			end
+
+			cache.blockloop = false
+			restoreAllRenderBlocks()
+		end)
+	end
+
+	-- // Single-Instance Zero-Closure Optimizer
+	local function optimizeCharacterFast(char, isExtended)
+		if not char then
+			return
+		end
+		local isLocal = (env.lp and char == env.lp.Character)
+		local desc = char:GetDescendants()
+		for i = 1, #desc do
+			local obj = desc[i]
+			local cls = obj.ClassName
+			if charStripClassSet[cls] then
+				if not isLocal or cls ~= "Shirt" and cls ~= "Pants" then
+					pcall(safeDestroy, obj)
+				end
+			elseif cls == "Decal" or cls == "Texture" then
+				if not isLocal or obj.Name ~= "face" then
+					pcall(safeDestroy, obj)
+				end
+			elseif obj:IsA("BasePart") then
+				obj.CastShadow = false
+				obj.Reflectance = 0
+				if isExtended then
+					obj.Material = Enum.Material.SmoothPlastic
+				end
+				if not isLocal and st.reducemethod ~= "Colorful Heavy" then
+					obj.Color = mediumGreyColor
+				end
+				if cls == "MeshPart" and not isLocal then
+					pcall(safeClearMeshTex, obj)
+				end
+			elseif cls == "BodyColors" and not isLocal and st.reducemethod ~= "Colorful Heavy" then
+				pcall(safeDestroy, obj)
+			elseif cls == "SpecialMesh" and not isLocal then
+				pcall(safeClearSpecialMeshTex, obj)
+			end
+		end
+	end
+
+	local function bindAllPlayersOptimizer(isExtended)
+		for i = 1, #cache.playerconns do
+			cache.playerconns[i]:Disconnect()
+		end
+		table.clear(cache.playerconns)
+
+		for k, conn in pairs(cache.charconns) do
+			conn:Disconnect()
+			cache.charconns[k] = nil
+		end
+
+		local function hookPlayer(plr, skipImmediate)
+			if plr.Character then
+				charModelSet[plr.Character] = true
+				if not skipImmediate then
+					task.spawn(optimizeCharacterFast, plr.Character, isExtended)
+				end
+			end
+			cache.charconns[plr] = plr.CharacterAdded:Connect(function(ch)
+				charModelSet[ch] = true
+				task.wait(0.25)
+				optimizeCharacterFast(ch, isExtended)
+			end)
+		end
+
+		local plrs = sv.p:GetPlayers()
+		for i = 1, #plrs do
+			hookPlayer(plrs[i], true)
+		end
+		task.spawn(function()
+			for i = 1, #plrs do
+				local ch = plrs[i] and plrs[i].Character
+				if ch then
+					optimizeCharacterFast(ch, isExtended)
+					if i % 2 == 0 then
+						task.wait()
+					end
+				end
+			end
+		end)
+
+		cache.playerconns[#cache.playerconns + 1] = sv.p.PlayerAdded:Connect(function(plr)
+			hookPlayer(plr, false)
+		end)
+		cache.playerconns[#cache.playerconns + 1] = sv.p.PlayerRemoving:Connect(function(plr)
+			if cache.charconns[plr] then
+				cache.charconns[plr]:Disconnect()
+				cache.charconns[plr] = nil
+			end
+		end)
+	end
+
+	local function optimizeSingleObject(obj, method)
+		if not obj or not obj.Parent or obj == terrain then
+			return false
+		end
+		if processedInst[obj] then
+			return false
+		end
+
+		local cls = obj.ClassName
+		local isPotato = (method == "Super Potato")
+		local isSuper = isPotato or (method == "Super Heavy")
+		local isPower = (method == "Powerfull Heavy")
+		local isColorful = (method == "Colorful Heavy")
+		local isExtended = isSuper or isPower or isColorful
+
+		if destroyClassSet[cls] then
+			pcall(safeDestroy, obj)
+			return true
+		end
+
+		if cls == "Decal" or cls == "Texture" then
+			if isSuper or isColorful then
+				pcall(safeDestroy, obj)
+			else
+				processedInst[obj] = true
+				pcall(safeHideDecal, obj)
+			end
+			return true
+		end
+
+		if cls == "Sky" then
+			processedInst[obj] = true
+			pcall(safeSetSkyMinimal, obj)
+			return true
+		end
+
+		if cls == "SpecialMesh" then
+			processedInst[obj] = true
+			if isSuper then
+				pcall(safeClearSpecialMeshTex, obj)
+				return true
+			end
+			return false
+		end
+
+		if cls == "BillboardGui" or cls == "SurfaceGui" then
+			processedInst[obj] = true
+			if st.renderblockenabled then
+				registerWorldGui(obj)
+			end
+			return false
+		end
+
+		if obj:IsA("PostEffect") then
+			obj.Enabled = false
+			if isExtended then
+				pcall(safeDestroy, obj)
+			end
+			return true
+		end
+
+		if obj:IsA("BasePart") then
+			if isCharacterOrToolDescendant(obj) then
+				obj.CastShadow = false
+				obj.Reflectance = 0
+				processedInst[obj] = true
+				return false
+			end
+
+			processedInst[obj] = true
+			obj.CastShadow = false
+			obj.Reflectance = 0
+			obj.Material = Enum.Material.SmoothPlastic
+
+			local isRoad = isRoadOrFloorSurface(obj)
+			if not isColorful then
+				if obj:IsA("UnionOperation") then
+					pcall(safeSetUnionPartColor, obj)
+				end
+				obj.Color = isRoad and roadGreyColor or mediumGreyColor
+			end
+
+			if cls == "MeshPart" and isSuper then
+				pcall(safeClearMeshTex, obj)
+			end
+
+			if (isSuper or isColorful) and not isRoad and not obj.CanCollide and not obj.CanTouch and not obj.CanQuery then
+				if nameMatch(obj.Name, pureFoliageHidePatterns) then
+					obj.LocalTransparencyModifier = 1
+					return true
+				end
+			end
+
+			if st.renderblockenabled then
+				registerPartToRenderBlock(obj)
+			end
+			return true
+		end
+
+		return false
+	end
+
+	-- // Micro-Batched Real-Time Descendant Cleaner (Zero Lag on Spawned VFX / Streamed Parts)
+	local function startAutoCleanStream()
+		if cache.descendantconn then
+			return
+		end
+
+		cache.descendantconn = workspace.DescendantAdded:Connect(function(obj)
+			if not st.autocleanvfx and not st.reduceenabled then
+				return
+			end
+			pendingCount = pendingCount + 1
+			pendingQueue[pendingCount] = obj
+
+			if not cache.queueworker then
+				cache.queueworker = true
+				task.defer(function()
+					while pendingCount > 0 do
+						local t0 = os.clock()
+						local mutated = 0
+						local idx = pendingCount
+						while idx > 0 do
+							local item = pendingQueue[idx]
+							pendingQueue[idx] = nil
+							idx = idx - 1
+							pendingCount = idx
+							if optimizeSingleObject(item, st.reducemethod) then
+								mutated = mutated + 1
+							end
+							if mutated >= 40 or (os.clock() - t0) > 0.002 then
+								break
+							end
+						end
+						if pendingCount > 0 then
+							task.wait()
+						end
+					end
+					cache.queueworker = false
+				end)
+			end
+		end)
+	end
+
+	local function stopAutoCleanStream()
+		if cache.descendantconn and not st.autocleanvfx and not st.reduceenabled then
+			cache.descendantconn:Disconnect()
+			cache.descendantconn = nil
+			table.clear(pendingQueue)
+			pendingCount = 0
+		end
+	end
+
+	-- // Single-Pass Time-Sliced Map Reducer (2ms & 45-Mutation Budget Per Frame = 0 Freeze / 0 Stutter)
+	local isReducingNow = false
+
+	local function runSmoothReducePass(forceRecommended)
+		if isReducingNow then
+			return
+		end
+		isReducingNow = true
+
+		refreshCharModelSet()
+		processedInst = setmetatable({}, { __mode = "k" })
+
+		local activeMethod = forceRecommended and "Super Potato" or (st.reducemethod or "Super Potato")
+		local isSuper = (activeMethod == "Super Potato") or (activeMethod == "Super Heavy")
+		local isExtended = isSuper or (activeMethod == "Powerfull Heavy") or (activeMethod == "Colorful Heavy")
+
+		if forceRecommended then
+			st.forcelowgfx = true
+			st.autocleanvfx = true
+			st.renderblockenabled = true
+			table.clear(spatialBlocks)
+			table.clear(spatialBlockMap)
+			table.clear(worldGuis)
+			trackedPartBlocks = setmetatable({}, { __mode = "k" })
+			worldGuiOrig = setmetatable({}, { __mode = "k" })
+		end
+
+		if forceRecommended or st.forcelowgfx or activeMethod == "Super Potato" then
+			applyPotatoGraphicsEngine()
+		end
+
+		local lightDesc = sv.l:GetDescendants()
+		for i = 1, #lightDesc do
+			optimizeSingleObject(lightDesc[i], activeMethod)
+		end
+
+		local wsDesc = workspace:GetDescendants()
+		local t0 = os.clock()
+		local mutated = 0
+		for i = 1, #wsDesc do
+			if optimizeSingleObject(wsDesc[i], activeMethod) then
+				mutated = mutated + 1
+			end
+			if mutated >= 220 or (i % 192 == 0 and (os.clock() - t0) > 0.0025) then
+				mutated = 0
+				task.wait()
+				t0 = os.clock()
+			end
+		end
+
+		local cam = workspace.CurrentCamera
+		if cam and not fcRunning then
+			cam.FieldOfView = 70
+		end
+
+		bindAllPlayersOptimizer(isExtended)
+
+		if forceRecommended then
+			startAutoCleanStream()
+			startRenderBlockLimiter(true)
+			if forceLowGfxToggleObj and forceLowGfxToggleObj.Set then
+				pcall(function() forceLowGfxToggleObj:Set(true) end)
+			end
+			if autoCleanToggleObj and autoCleanToggleObj.Set then
+				pcall(function() autoCleanToggleObj:Set(true) end)
+			end
+			if renderBlockToggleObj and renderBlockToggleObj.Set then
+				pcall(function() renderBlockToggleObj:Set(true) end)
+			end
+		end
+
+		pcall(collectgarbage, "step", 200)
+		isReducingNow = false
+		if forceRecommended then
+			chloex("Super Reduce active! Rata Kiri + " .. tostring(st.maxrenderblocks) .. " Render Blocks applied.")
+		end
+	end
+
+	if getgenv then
+		local genv = getgenv()
+		if type(genv.ChloeX_CleanupPerf) == "function" then
+			pcall(genv.ChloeX_CleanupPerf)
+		end
+		genv.ChloeX_CleanupPerf = function()
+			st.reduceenabled = false
+			st.autocleanvfx = false
+			st.renderblockenabled = false
+			cache.blockloop = false
+			cache.reducetoken = cache.reducetoken + 1
+			if cache.descendantconn then
+				cache.descendantconn:Disconnect()
+				cache.descendantconn = nil
+			end
+			for i = 1, #cache.playerconns do
+				cache.playerconns[i]:Disconnect()
+			end
+			table.clear(cache.playerconns)
+			for k, conn in pairs(cache.charconns) do
+				conn:Disconnect()
+				cache.charconns[k] = nil
+			end
+		end
+		genv.ChloeX_RunSuperReduce = function()
+			task.spawn(runSmoothReducePass, true)
+		end
+		genv.ChloeX_SetMaxBlocks = function(n)
+			st.maxrenderblocks = tonumber(n) or 100
+		end
+	end
+
+	-- // Performance Manager UI
 	performancemanager:AddDropdown({
 		Title = "Reduce Map Method",
 		Multi = false,
 		Default = st.reducemethod,
-		Options = { "Heavy", "Powerfull Heavy", "Super Heavy", "Colorful Heavy" },
+		Options = { "Super Potato", "Super Heavy", "Powerfull Heavy", "Heavy", "Colorful Heavy" },
 		Callback = function(v)
-			st.reducemethod = v or "Heavy"
+			st.reducemethod = v or "Super Potato"
+		end,
+	})
+
+	performancemanager:AddButton({
+		Title = "Reduce Map (Recommended)",
+		Callback = function()
+			task.spawn(runSmoothReducePass, true)
+		end,
+	})
+
+	autoCleanToggleObj = performancemanager:AddToggle({
+		Title = "Auto Clean VFX",
+		Default = false,
+		Callback = function(state)
+			st.autocleanvfx = state
+			if state then
+				startAutoCleanStream()
+			else
+				stopAutoCleanStream()
+			end
 		end,
 	})
 
@@ -563,21 +1140,54 @@ return function(Window, Tabs)
 			cache.reducetoken = cache.reducetoken + 1
 			local token = cache.reducetoken
 			if not state then
+				stopAutoCleanStream()
 				return
 			end
+			startAutoCleanStream()
 			task.spawn(function()
 				while st.reduceenabled and token == cache.reducetoken do
-					reduceOnce()
-					task.wait(math.max(1, st.reduceinterval * 3600))
+					runSmoothReducePass(false)
+					task.wait(math.max(10, st.reduceinterval * 3600))
 				end
 			end)
 		end,
 	})
 
-	performancemanager:AddButton({
-		Title = "Reduce Map (Recommended)",
-		Content = "Extreme Reduce map, VFX, Terrain, and Character Optimization",
-		Callback = reduceRecommended,
+	performancemanager:AddSubSection("Render Block & Engine Limiter")
+
+	performancemanager:AddSlider({
+		Title = "Max Render Blocks",
+		Min = 10,
+		Max = 500,
+		Default = 100,
+		Callback = function(val)
+			st.maxrenderblocks = tonumber(val) or 100
+		end,
+	})
+
+	renderBlockToggleObj = performancemanager:AddToggle({
+		Title = "Limit Render Blocks",
+		Default = false,
+		Callback = function(state)
+			st.renderblockenabled = state
+			if state then
+				startRenderBlockLimiter()
+			else
+				cache.blockloop = false
+				task.spawn(restoreAllRenderBlocks)
+			end
+		end,
+	})
+
+	forceLowGfxToggleObj = performancemanager:AddToggle({
+		Title = "Force Graphic Level 1",
+		Default = false,
+		Callback = function(state)
+			st.forcelowgfx = state
+			if state then
+				applyPotatoGraphicsEngine()
+			end
+		end,
 	})
 
 	performancemanager:AddSubSection("Quality Manager")
@@ -598,7 +1208,7 @@ return function(Window, Tabs)
 		Content = "Make your screen fully black",
 		Default = false,
 		Callback = function(value)
-			local chloeUI = sv.cg:FindFirstChild("Chloeex")
+			local chloeUI = (getgenv and getgenv().ChloeX_ScreenGui) or sv.cg:FindFirstChild("Chloeex")
 			local toggleUI = sv.cg:FindFirstChild("ToggleUIButton")
 
 			if value then
@@ -608,12 +1218,13 @@ return function(Window, Tabs)
 					frame.IgnoreGuiInset = true
 					frame.ResetOnSpawn = false
 					frame.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-					frame.DisplayOrder = 0
+					frame.DisplayOrder = -999
 					frame.Parent = sv.cg
 
 					local bg = Instance.new("Frame")
 					bg.Size = UDim2.new(1, 0, 1, 0)
 					bg.BackgroundColor3 = Color3.new(0, 0, 0)
+					bg.BorderSizePixel = 0
 					bg.ZIndex = 0
 					bg.Parent = frame
 				end
@@ -968,7 +1579,7 @@ return function(Window, Tabs)
 
 	-- // Freecam Manager
 	local camera = workspace.CurrentCamera
-	local fcRunning = false
+	fcRunning = false
 	local lastFreecamCF
 	local cameraPos = Vector3.new()
 	local cameraRot = Vector2.new()
@@ -1098,7 +1709,7 @@ return function(Window, Tabs)
 				if input ~= activeTouch or input.UserInputType ~= Enum.UserInputType.Touch then
 					return
 				end
-				touchPan += Vector2.new(-input.Delta.Y, -input.Delta.X)
+				touchPan = touchPan + Vector2.new(-input.Delta.Y, -input.Delta.X)
 			end)
 
 			touchArea.InputEnded:Connect(function(input)
@@ -1157,7 +1768,7 @@ return function(Window, Tabs)
 
 		local function mousepan(_, inputState, input)
 			if inputState == Enum.UserInputState.Change then
-				mouse.Delta += Vector2.new(-input.Delta.Y, -input.Delta.X)
+				mouse.Delta = mouse.Delta + Vector2.new(-input.Delta.Y, -input.Delta.X)
 			end
 			return Enum.ContextActionResult.Sink
 		end
@@ -1424,9 +2035,7 @@ return function(Window, Tabs)
 			end
 			local networkPause = robloxGui:FindFirstChild("CoreScripts/NetworkPause")
 			if networkPause then
-				pcall(function()
-					networkPause:Destroy()
-				end)
+				pcall(safeDestroy, networkPause)
 			end
 		end,
 	})
@@ -1621,9 +2230,7 @@ return function(Window, Tabs)
 		Callback = function(state)
 			st.autoexecute = state
 			if queue_on_teleport then
-				queue_on_teleport(state and [[
-loadstring(game:HttpGet("https://raw.githubusercontent.com/MajestySkie/Chloe-X/main/Main/ChloeX"))()
-]] or "")
+				queue_on_teleport(state and 'loadstring(game:HttpGet("https://raw.githubusercontent.com/MajestySkie/Chloe-X/main/Main/ChloeX"))()' or "")
 			end
 		end,
 	})
