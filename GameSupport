@@ -2,7 +2,7 @@ local Games = {
     ["Rivals"] = {
         Folder = "Rivals",
         GameId = 6035872082,
-        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Games/Rivals/Main.lua",
+        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Name/Rivals.lua",
     },
     ["Universal"] = {
         Folder = "Universal",
