@@ -10,11 +10,15 @@ local Games = {
     },
 }
 
+if getgenv and getgenv().ChloeX_Running then
+    return Games
+end
+
 local currentGameId = game.GameId
 local currentPlaceId = game.PlaceId
 local targetGame = nil
 
-for name, data in pairs(Games) do
+for _, data in pairs(Games) do
     if data.GameId == currentGameId or (type(data.GameId) == "table" and table.find(data.GameId, currentGameId)) then
         targetGame = data
         break
@@ -38,3 +42,5 @@ if targetGame and targetGame.Script and targetGame.Script ~= "" then
         warn("Failed!")
     end
 end
+
+return Games
