@@ -1,7 +1,40 @@
-return {
+local Games = {
     ["Rivals"] = {
         Folder = "Rivals",
         GameId = 6035872082,
-        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Name/Rivals.lua",
+        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Games/Rivals/Main.lua",
+    },
+    ["Universal"] = {
+        Folder = "Universal",
+        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Games/Universal/Main.lua",
     },
 }
+
+local currentGameId = game.GameId
+local currentPlaceId = game.PlaceId
+local targetGame = nil
+
+for name, data in pairs(Games) do
+    if data.GameId == currentGameId or (type(data.GameId) == "table" and table.find(data.GameId, currentGameId)) then
+        targetGame = data
+        break
+    elseif data.PlaceId == currentPlaceId or (type(data.PlaceId) == "table" and table.find(data.PlaceId, currentPlaceId)) then
+        targetGame = data
+        break
+    end
+end
+
+if not targetGame then
+    targetGame = Games["Universal"]
+end
+
+if targetGame and targetGame.Script and targetGame.Script ~= "" then
+    local success, scriptContent = pcall(function()
+        return game:HttpGet(targetGame.Script)
+    end)
+    if success and scriptContent and scriptContent ~= "" and not string.find(scriptContent, "404") then
+        loadstring(scriptContent)()
+    else
+        warn("Failed!")
+    end
+end
