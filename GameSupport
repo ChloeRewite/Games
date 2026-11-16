@@ -1,19 +1,7 @@
 return {
-    ["Blox Fruits"] = {
-        Folder = "BloxFruits",
-        GameId = 994732206,
-        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/main/Scripts/BloxFruits.lua",
+    ["Rivals"] = {
+        Folder = "Rivals",
+        GameId = 6035872082,
+        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Name/Rivals.lua",
     },
-
-    ["Fish It"] = {
-        Folder = "FishIt",
-        GameId = 121864768012064,
-        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/main/Scripts/FishIt.lua",
-    },
-
-    ["Baseplate Testing"] = {
-        Folder = "BaseplateTest",
-        GameId = 9271746647,
-        Script = "",
-    }
 }
