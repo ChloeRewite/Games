@@ -36,7 +36,7 @@ if targetGame and targetGame.Script and targetGame.Script ~= "" then
     local success, scriptContent = pcall(function()
         return game:HttpGet(targetGame.Script)
     end)
-    if success and scriptContent and scriptContent ~= "" and not string.find(scriptContent, "404") then
+    if success and scriptContent and scriptContent ~= "" and not string.find(scriptContent, "^40" .. "4") and not string.find(scriptContent, "40" .. "4: Not Found") then
         loadstring(scriptContent)()
     else
         warn("Failed!")
