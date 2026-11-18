@@ -2,11 +2,11 @@ local Games = {
     ["Rivals"] = {
         Folder = "Rivals",
         GameId = 6035872082,
-        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Name/Rivals.lua",
+        Script = "https://flowauth.net/v1/loaders/632881ef47682831ac434d58cb875e90.lua",
     },
     ["Universal"] = {
         Folder = "Universal",
-        Script = "https://raw.githubusercontent.com/ChloeRewite/Games/refs/heads/main/Games/Universal/Main.lua",
+        Script = "https://flowauth.net/v1/loaders/5986e494fa0ec3a28e374ca7d9239dd4.lua",
     },
 }
 
@@ -36,10 +36,23 @@ if targetGame and targetGame.Script and targetGame.Script ~= "" then
     local success, scriptContent = pcall(function()
         return game:HttpGet(targetGame.Script)
     end)
-    if success and scriptContent and scriptContent ~= "" and not string.find(scriptContent, "^40" .. "4") and not string.find(scriptContent, "40" .. "4: Not Found") then
-        loadstring(scriptContent)()
+
+    local isValidBody = success
+        and type(scriptContent) == "string"
+        and scriptContent ~= ""
+        and not string.find(scriptContent, "^40" .. "4")
+        and not string.find(scriptContent, "40" .. "4: Not Found")
+        and not string.find(scriptContent, "^%s*<")
+
+    if isValidBody then
+        local chunk, compileErr = loadstring(scriptContent)
+        if chunk then
+            chunk()
+        else
+            warn("Failed to compile loader:", compileErr)
+        end
     else
-        warn("Failed!")
+        warn("Failed to fetch loader!")
     end
 end
 
