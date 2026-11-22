@@ -23,6 +23,7 @@ return function(Window, Tabs)
 		hs = game:GetService("HttpService"),
 		cg = game:GetService("CoreGui"),
 		cas = game:GetService("ContextActionService"),
+		uis = game:GetService("UserInputService"),
 	}
 
 	local env = {
@@ -186,6 +187,18 @@ return function(Window, Tabs)
 	local spatialBlockMap = {}
 	local pendingQueue = {}
 	local pendingCount = 0
+
+	local function getControlModule()
+		local ok, mod = pcall(function()
+			local ps = env.lp and env.lp:FindFirstChild("PlayerScripts")
+			local pm = ps and ps:FindFirstChild("PlayerModule")
+			local cm = pm and pm:FindFirstChild("ControlModule")
+			if cm then
+				return require(cm)
+			end
+		end)
+		return ok and mod or nil
+	end
 
 	local function refreshCharModelSet()
 		local plrs = sv.p:GetPlayers()
@@ -1345,21 +1358,26 @@ return function(Window, Tabs)
 		local jumpConnection
 
 		local function bindInfiniteJump(character)
-			if jumpConnection then
-				jumpConnection:Disconnect()
-				jumpConnection = nil
-			end
+			task.spawn(function()
+				if jumpConnection then
+					jumpConnection:Disconnect()
+					jumpConnection = nil
+				end
 
-			local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid")
-
-			jumpConnection = humanoid:GetPropertyChangedSignal("Jump"):Connect(function()
-				if not st.infjump then
+				local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 10)
+				if not humanoid or not humanoid.Parent then
 					return
 				end
 
-				if humanoid.Jump then
-					humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-				end
+				jumpConnection = humanoid:GetPropertyChangedSignal("Jump"):Connect(function()
+					if not st.infjump then
+						return
+					end
+
+					if humanoid.Jump then
+						humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+					end
+				end)
 			end)
 		end
 
@@ -1420,11 +1438,7 @@ return function(Window, Tabs)
 		local flyUp = false
 		local flyDown = false
 
-		local ControlModule
-		pcall(function()
-			ControlModule =
-				require(env.lp:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("ControlModule"))
-		end)
+		local ControlModule = getControlModule()
 
 		local function stopFly()
 			st.flying = false
@@ -1521,10 +1535,15 @@ return function(Window, Tabs)
 				end
 
 				local movement = Vector3.zero
+				ControlModule = ControlModule or getControlModule()
 				if ControlModule and ControlModule.GetMoveVector then
 					pcall(function()
 						movement = ControlModule:GetMoveVector()
 					end)
+				elseif sv.uis then
+					local fw = (sv.uis:IsKeyDown(Enum.KeyCode.W) and 1 or 0) - (sv.uis:IsKeyDown(Enum.KeyCode.S) and 1 or 0)
+					local lr = (sv.uis:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (sv.uis:IsKeyDown(Enum.KeyCode.A) and 1 or 0)
+					movement = Vector3.new(lr, 0, -fw)
 				end
 
 				local vertical = (flyUp and 1 or 0) - (flyDown and 1 or 0)
@@ -1634,12 +1653,7 @@ return function(Window, Tabs)
 		local lastTap = 0
 		local touchGui
 		local activeTouch
-		local controlModule
-
-		pcall(function()
-			controlModule =
-				require(env.lp:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("ControlModule"))
-		end)
+		local controlModule = getControlModule()
 
 		local function hasTouchControls()
 			local playerGui = env.lp:FindFirstChildOfClass("PlayerGui")
@@ -1719,12 +1733,15 @@ return function(Window, Tabs)
 			navSpeed = math.clamp(navSpeed + dt * (keyboard.Up - keyboard.Down) * 0.75, 0.01, 4)
 			local move = Vector3.new(keyboard.D - keyboard.A, keyboard.E - keyboard.Q, keyboard.S - keyboard.W)
 
-			if move.Magnitude == 0 and controlModule then
-				local ok, controlMove = pcall(function()
-					return controlModule:GetMoveVector()
-				end)
-				if ok and controlMove then
-					move = Vector3.new(controlMove.X, 0, -controlMove.Z) * mobileBoost
+			if move.Magnitude == 0 then
+				controlModule = controlModule or getControlModule()
+				if controlModule and controlModule.GetMoveVector then
+					local ok, controlMove = pcall(function()
+						return controlModule:GetMoveVector()
+					end)
+					if ok and controlMove then
+						move = Vector3.new(controlMove.X, 0, -controlMove.Z) * mobileBoost
+					end
 				end
 			end
 
@@ -1831,6 +1848,10 @@ return function(Window, Tabs)
 	end
 
 	local function getFocusDistance(cf)
+		camera = camera or workspace.CurrentCamera
+		if not camera then
+			return 10
+		end
 		local znear = 0.1
 		local viewport = camera.ViewportSize
 		local projy = 2 * math.tan(math.rad(70 / 2))
@@ -1862,6 +1883,10 @@ return function(Window, Tabs)
 	end
 
 	local function stepFreecam(dt)
+		camera = camera or workspace.CurrentCamera
+		if not camera then
+			return
+		end
 		local rawVel = freecamInput.Vel(dt)
 		local rawPan = freecamInput.Pan(dt)
 		local vel = st.freecamsmooth and velSpring:Update(dt, rawVel) or rawVel
@@ -1877,6 +1902,10 @@ return function(Window, Tabs)
 	end
 
 	local function startFreecam(pos)
+		camera = camera or workspace.CurrentCamera
+		if not camera then
+			return
+		end
 		if fcRunning then
 			pcall(function()
 				sv.rs:UnbindFromRenderStep("Freecam")
@@ -1911,7 +1940,10 @@ return function(Window, Tabs)
 
 	local function resetFreecamPosition()
 		local char = env.lp.Character or env.lp.CharacterAdded:Wait()
-		local hrp = char:WaitForChild("HumanoidRootPart")
+		local hrp = char:WaitForChild("HumanoidRootPart", 5)
+		if not hrp then
+			return
+		end
 		local cf = hrp.CFrame * CFrame.new(0, 2, -8)
 		local x, y = cf:ToOrientation()
 		cameraPos = cf.Position
