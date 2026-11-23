@@ -2221,7 +2221,7 @@ return function(Window, Tabs)
 
 	servermanager:AddToggle({
 		Title = "Auto Reconnect",
-		Default = true,
+		Default = false,
 		Callback = function(state)
 			st.reconnect = state
 			if cache.errorconn then
