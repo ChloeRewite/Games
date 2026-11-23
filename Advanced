@@ -2059,7 +2059,7 @@ return function(Window, Tabs)
 		end,
 	})
 
-	local function startAntiAFKLogic()
+		local function disableIdledConnections()
 		pcall(function()
 			if not getconnections then
 				return
@@ -2072,7 +2072,43 @@ return function(Window, Tabs)
 		end)
 	end
 
+	local function clickRightTopLeftVIM()
+		pcall(function()
+			local vim = game:GetService("VirtualInputManager")
+			vim:SendMouseButtonEvent(2, 80, 1, true, game, 1)
+			task.wait(0.05)
+			vim:SendMouseButtonEvent(2, 80, 1, false, game, 1)
+		end)
+	end
+
+	local function startAntiAFKLogic()
+		disableIdledConnections()
+
+		local token = (st.afkloop or 0) + 1
+		st.afkloop = token
+
+		task.spawn(function()
+			local elapsed = 0
+			while st.antiafk and st.afkloop == token do
+				task.wait(10)
+				if not st.antiafk or st.afkloop ~= token then
+					break
+				end
+
+				disableIdledConnections()
+				elapsed = elapsed + 10
+
+				if elapsed >= 600 then
+					elapsed = 0
+					clickRightTopLeftVIM()
+				end
+			end
+		end)
+	end
+
 	local function stopAntiAFKLogic()
+		st.afkloop = (st.afkloop or 0) + 1
+
 		pcall(function()
 			if not getconnections then
 				return
@@ -2097,6 +2133,10 @@ return function(Window, Tabs)
 			end
 		end,
 	})
+
+	if st.antiafk then
+		startAntiAFKLogic()
+	end
 
 	servermanager:AddButton({
 		Title = "Rejoin Server",
