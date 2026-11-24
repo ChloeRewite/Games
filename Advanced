@@ -87,6 +87,101 @@ return function(Window, Tabs)
         blockscanconn = nil
     }
 
+    local function pulseAntiAFK()
+        pcall(function()
+            local vu = game:GetService("VirtualUser")
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new())
+        end)
+        pcall(function()
+            local vim = game:GetService("VirtualInputManager")
+            vim:SendMouseButtonEvent(2, 80, 0, true, game, 1)
+            task.wait(0.05)
+            vim:SendMouseButtonEvent(2, 80, 0, false, game, 1)
+        end)
+    end
+
+    local function disableIdledConnections()
+        pcall(function()
+            if not getconnections then
+                return
+            end
+            for _, connection in pairs(getconnections(env.lp.Idled)) do
+                if connection.Function ~= pulseAntiAFK and connection.Disable then
+                    connection:Disable()
+                end
+            end
+        end)
+    end
+
+    local function startAntiAFKLogic()
+        if cache.afkconn then
+            cache.afkconn:Disconnect()
+            cache.afkconn = nil
+        end
+
+        disableIdledConnections()
+        cache.afkconn = env.lp.Idled:Connect(pulseAntiAFK)
+        task.spawn(pulseAntiAFK)
+
+        local token = (st.afkloop or 0) + 1
+        st.afkloop = token
+        if getgenv then
+            getgenv()._ChloeX_AfkToken = token
+        end
+
+        task.spawn(function()
+            local elapsed = 0
+            while st.antiafk and st.afkloop == token do
+                if getgenv and getgenv()._ChloeX_AfkToken ~= token then
+                    break
+                end
+                task.wait(10)
+                if not st.antiafk or st.afkloop ~= token then
+                    break
+                end
+                if getgenv and getgenv()._ChloeX_AfkToken ~= token then
+                    break
+                end
+
+                disableIdledConnections()
+                elapsed = elapsed + 10
+
+                if elapsed >= 90 then
+                    elapsed = 0
+                    pulseAntiAFK()
+                end
+            end
+        end)
+    end
+
+    local function stopAntiAFKLogic()
+        st.afkloop = (st.afkloop or 0) + 1
+        if getgenv then
+            getgenv()._ChloeX_AfkToken = st.afkloop
+        end
+
+        if cache.afkconn then
+            cache.afkconn:Disconnect()
+            cache.afkconn = nil
+        end
+
+        pcall(function()
+            if not getconnections then
+                return
+            end
+            for _, connection in pairs(getconnections(env.lp.Idled)) do
+                if connection.Enable then
+                    connection:Enable()
+                end
+            end
+        end)
+    end
+
+    if st.antiafk then
+        startAntiAFKLogic()
+    end
+
     Tabs = Tabs or {}
     if not Tabs.D and not Tabs.I and Window and Window.AddInfoTab then
         Tabs.D = Window:AddInfoTab({
@@ -2038,79 +2133,6 @@ return function(Window, Tabs)
         end
     })
 
-    local function clickLeftTopLeftVIM()
-        pcall(function()
-            local vim = game:GetService("VirtualInputManager")
-            vim:SendMouseButtonEvent(2, 80, 0, true, game, 1)
-            task.wait(0.05)
-            vim:SendMouseButtonEvent(2, 80, 0, false, game, 1)
-        end)
-    end
-
-    local function disableIdledConnections()
-        pcall(function()
-            if not getconnections then
-                return
-            end
-            for _, connection in pairs(getconnections(env.lp.Idled)) do
-                if connection.Function ~= clickLeftTopLeftVIM and connection.Disable then
-                    connection:Disable()
-                end
-            end
-        end)
-    end
-
-    local function startAntiAFKLogic()
-        if cache.afkconn then
-            cache.afkconn:Disconnect()
-            cache.afkconn = nil
-        end
-
-        disableIdledConnections()
-        cache.afkconn = env.lp.Idled:Connect(clickLeftTopLeftVIM)
-
-        local token = (st.afkloop or 0) + 1
-        st.afkloop = token
-
-        task.spawn(function()
-            local elapsed = 0
-            while st.antiafk and st.afkloop == token do
-                task.wait(10)
-                if not st.antiafk or st.afkloop ~= token then
-                    break
-                end
-
-                disableIdledConnections()
-                elapsed = elapsed + 10
-
-                if elapsed >= 600 then
-                    elapsed = 0
-                    clickLeftTopLeftVIM()
-                end
-            end
-        end)
-    end
-
-    local function stopAntiAFKLogic()
-        st.afkloop = (st.afkloop or 0) + 1
-
-        if cache.afkconn then
-            cache.afkconn:Disconnect()
-            cache.afkconn = nil
-        end
-
-        pcall(function()
-            if not getconnections then
-                return
-            end
-            for _, connection in pairs(getconnections(env.lp.Idled)) do
-                if connection.Enable then
-                    connection:Enable()
-                end
-            end
-        end)
-    end
-
     afkmanager:AddToggle({
         Title = "Anti AFK",
         Default = true,
@@ -2123,10 +2145,6 @@ return function(Window, Tabs)
             end
         end
     })
-
-    if st.antiafk then
-        startAntiAFKLogic()
-    end
 
     servermanager:AddButton({
         Title = "Rejoin Server",
