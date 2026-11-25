@@ -2331,4 +2331,1273 @@ return function(Window, Tabs)
             end
         end
     })
+
+    local isUniversal = (Tabs.IsUniversal == true)
+        or (Window and Window._isUniversal == true)
+        or (getgenv and getgenv().ChloeX_IsUniversal == true)
+
+    local userTab = Tabs.U or Tabs.E
+    if not isUniversal and userTab and userTab.AddSection then
+        local function initUserVisuals()
+            local lp = env.lp
+            local hs = sv.hs
+
+            local vst = {
+                KorbloxLeft = false,
+                KorbloxRight = false,
+                HeadlessHead = false,
+                DeathWalkerHead = false,
+                OriginalHead = nil,
+                OriginalDeathWalkerHead = nil,
+                OriginalFaceTexture = nil,
+                SelectedHeadAccessories = {},
+                SelectedShoulderAccessories = {},
+                SelectedBackAccessories = {},
+                SelectedFace = "Default",
+                SelectedEditItem = "None",
+                HeadAccessoriesMap = nil,
+                ShoulderAccessoriesMap = nil,
+                BackAccessoriesMap = nil,
+                AccessoryOffsets = {},
+                AccessoryBaseMeshScale = {},
+                AccessoryBasePartSize = {},
+                AccessoryBaseC0 = {},
+                AccessoryBaseC1 = {},
+            }
+
+            local function getValidVisualRigs()
+                if not lp then return {} end
+                local rigs, seen = {}, {}
+                local containers = {
+                    workspace:FindFirstChild("Rigs"),
+                    workspace:FindFirstChild("Players"),
+                    workspace:FindFirstChild("Characters"),
+                    workspace:FindFirstChild("Entities"),
+                    workspace,
+                }
+                for _, cont in ipairs(containers) do
+                    if cont then
+                        for _, c in ipairs(cont:GetChildren()) do
+                            if c:IsA("Model") and c.Name == lp.Name and c.Name ~= "ChloeX_VisualAvatar" and not seen[c] then
+                                if c:FindFirstChild("Head") and (c:FindFirstChild("UpperTorso") or c:FindFirstChild("Torso")) then
+                                    seen[c] = true
+                                    table.insert(rigs, c)
+                                end
+                            end
+                        end
+                    end
+                end
+                return rigs
+            end
+
+            local function getRealCharacter()
+                if not lp then return nil end
+                local cam = workspace.CurrentCamera
+                local refPos = cam and cam.CFrame.Position or Vector3.new()
+                if cam and cam.CameraSubject then
+                    if cam.CameraSubject:IsA("Humanoid") and cam.CameraSubject.RootPart then
+                        refPos = cam.CameraSubject.RootPart.Position
+                    elseif cam.CameraSubject:IsA("BasePart") then
+                        refPos = cam.CameraSubject.Position
+                    end
+                end
+                local validRigs = getValidVisualRigs()
+                if #validRigs > 0 then
+                    local bestRig = validRigs[1]
+                    local minDist = math.huge
+                    for _, r in ipairs(validRigs) do
+                        local p = r:FindFirstChild("HumanoidRootPart") or r:FindFirstChild("UpperTorso") or r:FindFirstChild("Head") or r:FindFirstChild("Torso")
+                        if p then
+                            local d = (p.Position - refPos).Magnitude
+                            if d < minDist then
+                                minDist = d
+                                bestRig = r
+                            end
+                        end
+                    end
+                    return bestRig
+                end
+                return lp.Character
+            end
+
+            local leftLegTemplate = nil
+            local function getLeftLegTemplate()
+                if leftLegTemplate then return leftLegTemplate end
+                local ok, objs = pcall(function()
+                    return game:GetObjects("rbxassetid://139607673")
+                end)
+                if ok and objs and objs[1] then
+                    leftLegTemplate = objs[1]
+                end
+                return leftLegTemplate
+            end
+
+            local function applyKorbloxRight(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local rUpper = char:FindFirstChild("RightUpperLeg") or char:FindFirstChild("Right Leg")
+                local rLower = char:FindFirstChild("RightLowerLeg")
+                local rFoot = char:FindFirstChild("RightFoot")
+                local isR6 = (rLower == nil and rFoot == nil)
+
+                if rUpper then rUpper.Transparency = 1; rUpper.CanCollide = false end
+                if rLower then rLower.Transparency = 1; rLower.CanCollide = false end
+                if rFoot then rFoot.Transparency = 1; rFoot.CanCollide = false end
+
+                local old = char:FindFirstChild("ChloeXKorbloxRight")
+                if old then old:Destroy() end
+
+                if rUpper then
+                    local leg = Instance.new("Part")
+                    leg.Name = "ChloeXKorbloxRight"
+                    leg.Size = Vector3.new(1, 2, 1)
+                    leg.CanCollide = false
+                    leg.CanQuery = false
+                    leg.CanTouch = false
+                    leg.Massless = true
+                    leg.Color = Color3.fromRGB(128, 128, 128)
+                    leg.Parent = char
+
+                    local mesh = Instance.new("SpecialMesh")
+                    mesh.MeshType = Enum.MeshType.FileMesh
+                    mesh.MeshId = "rbxassetid://101851696"
+                    mesh.TextureId = "rbxassetid://101851254"
+                    mesh.Scale = Vector3.new(0.9, 0.9, 0.9)
+                    mesh.Name = "KorbloxMesh"
+                    mesh.Parent = leg
+
+                    local weld = Instance.new("Weld")
+                    weld.Name = "KorbloxWeld"
+                    weld.Part0 = rUpper
+                    weld.Part1 = leg
+                    weld.C0 = isR6 and CFrame.new(0, 0.18, 0) or CFrame.new(0, -0.4, 0)
+                    weld.Parent = leg
+                end
+            end
+
+            local function removeKorbloxRight(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local old = char:FindFirstChild("ChloeXKorbloxRight")
+                if old then old:Destroy() end
+
+                local rUpper = char:FindFirstChild("RightUpperLeg") or char:FindFirstChild("Right Leg")
+                local rLower = char:FindFirstChild("RightLowerLeg")
+                local rFoot = char:FindFirstChild("RightFoot")
+
+                if rUpper then rUpper.Transparency = 0 end
+                if rLower then rLower.Transparency = 0 end
+                if rFoot then rFoot.Transparency = 0 end
+            end
+
+            local function applyKorbloxLeft(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local lUpper = char:FindFirstChild("LeftUpperLeg") or char:FindFirstChild("Left Leg")
+                local lLower = char:FindFirstChild("LeftLowerLeg")
+                local lFoot = char:FindFirstChild("LeftFoot")
+                local isR6 = (lLower == nil and lFoot == nil)
+
+                if lUpper then lUpper.Transparency = 1; lUpper.CanCollide = false end
+                if lLower then lLower.Transparency = 1; lLower.CanCollide = false end
+                if lFoot then lFoot.Transparency = 1; lFoot.CanCollide = false end
+
+                local old = char:FindFirstChild("ChloeXKorbloxLeft_Rig")
+                if old then old:Destroy() end
+
+                local template = getLeftLegTemplate()
+                if template and lUpper and (isR6 or (lLower and lFoot)) then
+                    local folder = Instance.new("Folder")
+                    folder.Name = "ChloeXKorbloxLeft_Rig"
+                    folder.Parent = char
+
+                    local hipOrigin = nil
+                    local r6HipTop = nil
+                    if isR6 then
+                        local srcUpper = template:FindFirstChild("LeftUpperLeg")
+                        local hipAtt = srcUpper and srcUpper:FindFirstChild("LeftHipRigAttachment")
+                        if srcUpper and hipAtt then
+                            hipOrigin = srcUpper.CFrame * hipAtt.CFrame
+                        elseif srcUpper then
+                            hipOrigin = srcUpper.CFrame * CFrame.new(0, srcUpper.Size.Y * 0.5, 0)
+                        end
+                        r6HipTop = CFrame.new(0, lUpper.Size.Y * 0.5, 0)
+                    end
+
+                    local function attachPart(templName, realLimb)
+                        local src = template:FindFirstChild(templName)
+                        if src and realLimb then
+                            local clone = src:Clone()
+                            for _, child in ipairs(clone:GetChildren()) do
+                                if child:IsA("JointInstance") then
+                                    child:Destroy()
+                                end
+                            end
+                            clone.CanCollide = false
+                            clone.CanTouch = false
+                            clone.CanQuery = false
+                            clone.Massless = true
+                            clone.Parent = folder
+
+                            local w = Instance.new("Weld")
+                            w.Part0 = realLimb
+                            w.Part1 = clone
+                            if isR6 and hipOrigin and r6HipTop then
+                                w.C0 = r6HipTop * hipOrigin:ToObjectSpace(src.CFrame)
+                            else
+                                w.C0 = CFrame.new(0, 0, 0)
+                            end
+                            w.Parent = clone
+                        end
+                    end
+
+                    if isR6 then
+                        attachPart("LeftUpperLeg", lUpper)
+                        attachPart("LeftLowerLeg", lUpper)
+                        attachPart("LeftFoot", lUpper)
+                    else
+                        attachPart("LeftUpperLeg", lUpper)
+                        attachPart("LeftLowerLeg", lLower)
+                        attachPart("LeftFoot", lFoot)
+                    end
+                end
+            end
+
+            local function removeKorbloxLeft(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local old = char:FindFirstChild("ChloeXKorbloxLeft_Rig")
+                if old then old:Destroy() end
+
+                local lUpper = char:FindFirstChild("LeftUpperLeg") or char:FindFirstChild("Left Leg")
+                local lLower = char:FindFirstChild("LeftLowerLeg")
+                local lFoot = char:FindFirstChild("LeftFoot")
+
+                if lUpper then lUpper.Transparency = 0 end
+                if lLower then lLower.Transparency = 0 end
+                if lFoot then lFoot.Transparency = 0 end
+            end
+
+            local applyDeathWalkerHead
+            local function applyHeadlessVisual(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local head = char:FindFirstChild("Head")
+                if not head then return end
+
+                if not vst.OriginalHead then
+                    local decalMap = {}
+                    for _, child in ipairs(head:GetChildren()) do
+                        if child:IsA("Decal") then
+                            decalMap[child] = child.Transparency
+                        end
+                    end
+                    vst.OriginalHead = {
+                        MeshId = head:IsA("MeshPart") and head.MeshId or (head:FindFirstChildOfClass("SpecialMesh") and head:FindFirstChildOfClass("SpecialMesh").MeshId or ""),
+                        TextureID = head:IsA("MeshPart") and head.TextureID or (head:FindFirstChildOfClass("SpecialMesh") and head:FindFirstChildOfClass("SpecialMesh").TextureId or ""),
+                        Transparency = head.Transparency,
+                        Decals = decalMap,
+                    }
+                end
+
+                pcall(function()
+                    head.MeshId = "rbxassetid://134079402"
+                    head.TextureID = ""
+                end)
+                head.Transparency = 1
+                for _, child in ipairs(head:GetChildren()) do
+                    if child:IsA("Decal") then
+                        child.Transparency = 1
+                    end
+                end
+            end
+
+            local function removeHeadlessVisual(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local head = char:FindFirstChild("Head")
+                if not head then return end
+
+                if vst.DeathWalkerHead then
+                    vst.OriginalHead = nil
+                    applyDeathWalkerHead(char)
+                    return
+                end
+
+                if vst.OriginalHead then
+                    pcall(function()
+                        if head:IsA("MeshPart") then
+                            head.MeshId = vst.OriginalHead.MeshId
+                            head.TextureID = vst.OriginalHead.TextureID
+                        elseif head:FindFirstChildOfClass("SpecialMesh") then
+                            local sm = head:FindFirstChildOfClass("SpecialMesh")
+                            sm.MeshId = vst.OriginalHead.MeshId
+                            sm.TextureID = vst.OriginalHead.TextureID
+                        end
+                    end)
+                    head.Transparency = vst.OriginalHead.Transparency
+                    for decal, origTrans in pairs(vst.OriginalHead.Decals) do
+                        if decal and decal.Parent then
+                            decal.Transparency = origTrans
+                        end
+                    end
+                    vst.OriginalHead = nil
+                else
+                    head.Transparency = 0
+                    for _, child in ipairs(head:GetChildren()) do
+                        if child:IsA("Decal") then
+                            child.Transparency = 0
+                        end
+                    end
+                end
+            end
+
+            local function createDeathWalkerEyeEmitter(name)
+                local pe = Instance.new("ParticleEmitter")
+                pe.Name = name
+                pe.Texture = "rbxassetid://7673945261"
+                pe.LightEmission = 0.65
+                pe.LightInfluence = 0
+                pe.EmissionDirection = Enum.NormalId.Bottom
+                pe.Acceleration = Vector3.new(0, 0.1, 0)
+                pe.Drag = 1
+                pe.Rate = 20
+                pe.Lifetime = NumberRange.new(0.8, 0.8)
+                pe.Speed = NumberRange.new(1, 1)
+                pe.SpreadAngle = Vector2.new(-5, 5)
+                pe.Rotation = NumberRange.new(0, 90)
+                pe.RotSpeed = NumberRange.new(10, 20)
+                pe.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(178, 254, 255)),
+                    ColorSequenceKeypoint.new(0.128, Color3.fromRGB(146, 231, 255)),
+                    ColorSequenceKeypoint.new(0.368, Color3.fromRGB(0, 119, 246)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(33, 0, 198)),
+                })
+                pe.Size = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0),
+                    NumberSequenceKeypoint.new(0.162, 0.2),
+                    NumberSequenceKeypoint.new(1, 0),
+                })
+                pe.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 1),
+                    NumberSequenceKeypoint.new(0.258, 0),
+                    NumberSequenceKeypoint.new(1, 1),
+                })
+                return pe
+            end
+
+            applyDeathWalkerHead = function(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local head = char:FindFirstChild("Head")
+                if not head then return end
+
+                if not vst.OriginalDeathWalkerHead and not vst.HeadlessHead then
+                    local decalMap = {}
+                    for _, child in ipairs(head:GetChildren()) do
+                        if child:IsA("Decal") then
+                            decalMap[child] = child.Transparency
+                        end
+                    end
+                    vst.OriginalDeathWalkerHead = {
+                        Transparency = head.Transparency,
+                        Decals = decalMap,
+                    }
+                end
+
+                head.Transparency = 1
+                for _, child in ipairs(head:GetChildren()) do
+                    if child:IsA("Decal") then
+                        child.Transparency = 1
+                    end
+                end
+
+                local leftAtt = head:FindFirstChild("LeftEyeFire")
+                if not leftAtt then
+                    leftAtt = Instance.new("Attachment")
+                    leftAtt.Name = "LeftEyeFire"
+                    leftAtt.Position = Vector3.new(-0.185, 0.469, -0.227)
+                    leftAtt.Parent = head
+                    createDeathWalkerEyeEmitter("fire_eye_L").Parent = leftAtt
+                end
+
+                local rightAtt = head:FindFirstChild("RightEyeFire")
+                if not rightAtt then
+                    rightAtt = Instance.new("Attachment")
+                    rightAtt.Name = "RightEyeFire"
+                    rightAtt.Position = Vector3.new(0.185, 0.469, -0.227)
+                    rightAtt.Parent = head
+                    createDeathWalkerEyeEmitter("fire_eye_R").Parent = rightAtt
+                end
+            end
+
+            local function removeDeathWalkerHead(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local head = char:FindFirstChild("Head")
+                if not head then return end
+
+                local leftAtt = head:FindFirstChild("LeftEyeFire")
+                if leftAtt then leftAtt:Destroy() end
+                local rightAtt = head:FindFirstChild("RightEyeFire")
+                if rightAtt then rightAtt:Destroy() end
+                local deathMesh = head:FindFirstChild("ChloeXDeathWalkerMesh")
+                if deathMesh then deathMesh:Destroy() end
+
+                if vst.OriginalDeathWalkerHead then
+                    if not vst.HeadlessHead then
+                        head.Transparency = vst.OriginalDeathWalkerHead.Transparency
+                        for decal, origTrans in pairs(vst.OriginalDeathWalkerHead.Decals or {}) do
+                            if decal and decal.Parent then
+                                decal.Transparency = origTrans
+                            end
+                        end
+                    end
+                    vst.OriginalDeathWalkerHead = nil
+                elseif not vst.HeadlessHead then
+                    head.Transparency = 0
+                    for _, child in ipairs(head:GetChildren()) do
+                        if child:IsA("Decal") then
+                            child.Transparency = 0
+                        end
+                    end
+                end
+            end
+
+            local HEAD_ACCESSORIES_FALLBACK = {
+                ["Korblox Deathwalker Helmet"] = 16580499833,
+                ["Dominus Empyreus"] = 21070012,
+                ["Dominus Infernus"] = 31101391,
+                ["Dominus Frigidus"] = 48545806,
+                ["Dominus Astra"] = 162067148,
+                ["Dominus Messor"] = 64444871,
+                ["Dominus Vespertilio"] = 96103379,
+                ["Dominus Aureus"] = 138932314,
+                ["Dominus Pittacium"] = 335080779,
+                ["Dominus Rex"] = 250395631,
+                ["Dominus Venari"] = 1483720409,
+                ["Dominus Formidulosus"] = 4255053867,
+                ["Dominus Praefectus"] = 527365852,
+                ["Classic Valkyrie Helm"] = 1365767,
+                ["Blackvalk"] = 124730194,
+                ["Sparkle Time Valkyrie"] = 1402432199,
+                ["Emerald Valkyrie"] = 2830437685,
+                ["The Classic ROBLOX Fedora"] = 1029025,
+                ["Sparkle Time Fedora"] = 1285307,
+                ["Midnight Blue Sparkle Time Fedora"] = 119916949,
+                ["Purple Sparkle Time Fedora"] = 63043890,
+                ["Green Sparkle Time Fedora"] = 100929604,
+                ["Red Sparkle Time Fedora"] = 72082328,
+                ["Bluesteel Fedora"] = 98346834,
+                ["Fiery Horns of the Netherworld"] = 215718515,
+                ["Poisoned Horns of the Toxic Wasteland"] = 1744060292,
+                ["Frozen Horns of the Frigid Planes"] = 74891470,
+                ["Domino Crown"] = 1031429,
+                ["Red Domino Crown"] = 42211680,
+                ["Bluesteel Domino Crown"] = 68258723,
+                ["Wanwood Crown"] = 9910070,
+                ["Clockwork's Headphones"] = 1235488,
+                ["Silver King of the Night"] = 439945661,
+                ["Beautiful Hair for Beautiful People"] = 16630147,
+                ["Shaggy"] = 20573078,
+            }
+
+            local FACES_FALLBACK = {
+                ["Super Super Happy Face"] = 494291269,
+                ["Playful Vampire"] = 2409285794,
+                ["Stitchface"] = 8329679,
+                ["Beast Mode"] = 128992838,
+                ["Red Tango"] = 16652251,
+                ["Joyful Smile"] = 209995366,
+                ["Epic Face"] = 42070576,
+                ["Shiny Teeth"] = 20722130,
+                ["Prankster"] = 20052135,
+                ["Troublemaker"] = 22920501,
+                ["Bubble Trouble"] = 19264845,
+                ["Freckles"] = 12145366,
+                ["Whistle"] = 22877700,
+                ["Glee"] = 7074729,
+                ["Chill"] = 7074764,
+                ["Man Face"] = 86487700,
+                ["Woman Face"] = 86487766,
+                ["Winning Smile"] = 616380929,
+                ["Check It"] = 7074786,
+            }
+
+            local FACE_TEXTURE_MAP = {
+                [494291269] = "rbxassetid://494290547",
+                [2409285794] = "rbxassetid://2409281791",
+                [8329679] = "rbxassetid://8329668",
+                [128992838] = "rbxassetid://128992797",
+                [16652251] = "rbxassetid://16652233",
+                [209995366] = "rbxassetid://209713384",
+                [42070576] = "rbxassetid://42070565",
+                [20722130] = "rbxassetid://20722053",
+                [20052135] = "rbxassetid://20052028",
+                [22920501] = "rbxassetid://22920500",
+                [19264845] = "rbxassetid://19264778",
+                [12145366] = "rbxassetid://12145059",
+                [22877700] = "rbxassetid://22877685",
+                [7074729] = "rbxassetid://7074712",
+                [7074764] = "rbxassetid://7074751",
+                [86487700] = "rbxassetid://86487693",
+                [86487766] = "rbxassetid://86487756",
+                [616380929] = "rbxassetid://616380856",
+                [7074786] = "rbxassetid://7074779",
+            }
+
+            local SHOULDER_ACCESSORIES_FALLBACK = {
+                ["Tortegga"] = 99742784495587,
+                ["Ceremonial Guard of the Archduke"] = 335133696,
+                ["Overseer Armor Pauldrons"] = 357832740,
+                ["Krampus Shoulder Friend"] = 583147959,
+                ["St Patrick's Day Fairy"] = 226189871,
+                ["Blue Sleepy Owl"] = 259426115,
+                ["Santa Headrow"] = 568918670,
+                ["Candy Crusher"] = 327319628,
+                ["Halloween Headrow 2011"] = 63994465,
+                ["Shoulder Shark Cat"] = 532181076,
+                ["Fall Fairy"] = 128217885,
+                ["Santa Paws Dog"] = 585721245,
+            }
+
+            local BACK_ACCESSORIES_FALLBACK = {
+                ["8-Bit SwordPack"] = 121925647,
+                ["Immortal Sword: Celtic Blade"] = 689391156,
+                ["NARS Yachiyo Brush Back Accessory"] = 10857332979,
+                ["Frozen Swordpack"] = 190204972,
+                ["Vans Obstacle Backpack with Skateboard"] = 7592037079,
+                ["Flying Nightmare"] = 128158768,
+                ["Ultimate Competition Laser Swordpack"] = 243009946,
+                ["Void Spill"] = 127238392608990,
+                ["Gucci Spiked Basketball Bag"] = 6803400584,
+                ["Immortal Sword: The Heartshaker"] = 1425150624,
+                ["Golden Wings of the Pathfinder"] = 259424881,
+                ["Silver Wings"] = 190204987,
+            }
+
+            local function getAssetIdByName(name)
+                if not name or name == "None" or name == "" then return nil end
+                return (vst.HeadAccessoriesMap and vst.HeadAccessoriesMap[name])
+                    or (vst.ShoulderAccessoriesMap and vst.ShoulderAccessoriesMap[name])
+                    or (vst.BackAccessoriesMap and vst.BackAccessoriesMap[name])
+                    or HEAD_ACCESSORIES_FALLBACK[name]
+                    or SHOULDER_ACCESSORIES_FALLBACK[name]
+                    or BACK_ACCESSORIES_FALLBACK[name]
+                    or tonumber(name)
+            end
+
+            local function parseRolimonsCatalog(raw)
+                local _, _, jsonStr = string.find(raw, "var%s+item_details%s*=%s*(%b{})%s*;")
+                if not jsonStr then return nil end
+                local okJson, items = pcall(function() return hs:JSONDecode(jsonStr) end)
+                if not okJson or type(items) ~= "table" then return nil end
+
+                local headMap, headList = {}, { "None" }
+                local shoulderMap, shoulderList = {}, { "None" }
+                local backMap, backList = {}, { "None" }
+                local seen = {}
+
+                for key, val in pairs(items) do
+                    if type(val) == "table" then
+                        local aType = val[2]
+                        local name = val[1]
+                        local id = val[26] or tonumber(string.match(tostring(key), "%d+$"))
+                        if name and id and not seen[name] and not string.find(name, "Deleted") and not string.find(name, "DELETED") then
+                            seen[name] = true
+                            if aType == "asset:8" or aType == "asset:41" then
+                                headMap[name] = id; table.insert(headList, name)
+                            elseif aType == "asset:44" then
+                                shoulderMap[name] = id; table.insert(shoulderList, name)
+                            elseif aType == "asset:46" then
+                                backMap[name] = id; table.insert(backList, name)
+                            end
+                        end
+                    end
+                end
+
+                local function sortList(t)
+                    table.sort(t, function(a, b)
+                        if a == "None" then return true end
+                        if b == "None" then return false end
+                        return string.lower(a) < string.lower(b)
+                    end)
+                end
+                sortList(headList); sortList(shoulderList); sortList(backList)
+
+                return {
+                    HeadMap = headMap, HeadList = headList,
+                    ShoulderMap = shoulderMap, ShoulderList = shoulderList,
+                    BackMap = backMap, BackList = backList,
+                }
+            end
+
+            local function getCachedOrFetchRolimonsAccessories()
+                local cacheFile = "ChloeX_RolimonsAccessories.json"
+                if isfile and readfile and isfile(cacheFile) then
+                    local okR, content = pcall(readfile, cacheFile)
+                    if okR and content and #content > 0 then
+                        local okJ, decoded = pcall(function() return hs:JSONDecode(content) end)
+                        if okJ and decoded and type(decoded) == "table" and decoded.HeadMap then
+                            return decoded
+                        end
+                    end
+                end
+                local s, raw = pcall(function() return game:HttpGet("https://www.rolimons.com/catalog") end)
+                if s and raw and #raw > 0 then
+                    local data = parseRolimonsCatalog(raw)
+                    if data then
+                        if writefile then
+                            pcall(function() writefile(cacheFile, hs:JSONEncode(data)) end)
+                        end
+                        return data
+                    end
+                end
+                return nil
+            end
+
+            local function makeInitialList(map)
+                local list = { "None" }
+                for name in pairs(map) do table.insert(list, name) end
+                table.sort(list, function(a, b)
+                    if a == "None" then return true end
+                    if b == "None" then return false end
+                    return string.lower(a) < string.lower(b)
+                end)
+                return list
+            end
+
+            vst.HeadAccessoriesMap = HEAD_ACCESSORIES_FALLBACK
+            vst.ShoulderAccessoriesMap = SHOULDER_ACCESSORIES_FALLBACK
+            vst.BackAccessoriesMap = BACK_ACCESSORIES_FALLBACK
+
+            local facesList = {
+                "Default", "Super Super Happy Face", "Playful Vampire", "Stitchface",
+                "Beast Mode", "Red Tango", "Joyful Smile", "Epic Face", "Shiny Teeth",
+                "Prankster", "Troublemaker", "Bubble Trouble", "Freckles", "Whistle",
+                "Glee", "Chill", "Man Face", "Woman Face", "Winning Smile", "Check It",
+            }
+
+            local function applyFace(char, faceName)
+                char = char or getRealCharacter()
+                if not char then return end
+                local head = char:FindFirstChild("Head")
+                if not head then return end
+
+                local face = head:FindFirstChild("face") or head:FindFirstChildOfClass("Decal")
+                if not faceName or faceName == "Default" or faceName == "None" or faceName == "" then
+                    vst.SelectedFace = "Default"
+                    if vst.OriginalFaceTexture and face then
+                        face.Texture = vst.OriginalFaceTexture
+                        face.Transparency = (vst.HeadlessHead and 1 or 0)
+                    elseif face and not vst.OriginalFaceTexture then
+                        face:Destroy()
+                    end
+                    return
+                end
+
+                vst.SelectedFace = faceName
+                local assetId = FACES_FALLBACK[faceName] or tonumber(faceName)
+                if not assetId then return end
+                if not vst.OriginalFaceTexture and face then
+                    vst.OriginalFaceTexture = face.Texture
+                end
+
+                local textureId = FACE_TEXTURE_MAP[assetId]
+                if textureId then
+                    if not face then
+                        face = Instance.new("Decal")
+                        face.Name = "face"
+                        face.Face = Enum.NormalId.Front
+                        face.Parent = head
+                    end
+                    face.Texture = textureId
+                    face.Transparency = (vst.HeadlessHead and 1 or 0)
+                    return
+                end
+
+                task.spawn(function()
+                    local s, objs = pcall(function() return game:GetObjects("rbxassetid://" .. assetId) end)
+                    if s and objs and objs[1] and objs[1]:IsA("Decal") then
+                        local tex = objs[1].Texture
+                        FACE_TEXTURE_MAP[assetId] = tex
+                        local curChar = getRealCharacter()
+                        local curHead = curChar and curChar:FindFirstChild("Head")
+                        if curHead and vst.SelectedFace == faceName then
+                            local curFace = curHead:FindFirstChild("face") or curHead:FindFirstChildOfClass("Decal")
+                            if not curFace then
+                                curFace = Instance.new("Decal")
+                                curFace.Name = "face"
+                                curFace.Face = Enum.NormalId.Front
+                                curFace.Parent = curHead
+                            end
+                            curFace.Texture = tex
+                            curFace.Transparency = (vst.HeadlessHead and 1 or 0)
+                        end
+                    end
+                end)
+            end
+
+            local accessoryCache, loadingAssets = {}, {}
+
+            local function removeAllAccessories(char)
+                char = char or getRealCharacter()
+                if not char then return end
+                local oldSingle = char:FindFirstChild("ChloeX_HeadAccessory")
+                if oldSingle then oldSingle:Destroy() end
+                for _, child in ipairs(char:GetChildren()) do
+                    if string.sub(child.Name, 1, 11) == "ChloeX_Acc_" or string.sub(child.Name, 1, 15) == "ChloeX_HeadAcc_" then
+                        child:Destroy()
+                    end
+                end
+            end
+
+            local function attachAccessoryWeld(acc, char, assetId)
+                local handle = acc:FindFirstChild("Handle")
+                if not handle then return end
+                handle.CanCollide = false
+                handle.Massless = true
+
+                local sm = handle:FindFirstChildOfClass("SpecialMesh")
+                if sm and not vst.AccessoryBaseMeshScale[assetId] then
+                    vst.AccessoryBaseMeshScale[assetId] = sm.Scale
+                end
+                if not vst.AccessoryBasePartSize[assetId] then
+                    vst.AccessoryBasePartSize[assetId] = handle.Size
+                end
+
+                local handleAtt = handle:FindFirstChildOfClass("Attachment")
+                local targetAtt = handleAtt and char:FindFirstChild(handleAtt.Name, true) or nil
+
+                local weld = Instance.new("Weld")
+                weld.Name = "AccessoryWeld"
+                weld.Part0 = handle
+                local baseC0, baseC1
+
+                if targetAtt and handleAtt then
+                    weld.Part1 = targetAtt.Parent
+                    baseC0 = handleAtt.CFrame
+                    baseC1 = targetAtt.CFrame
+                else
+                    local head = char:FindFirstChild("Head")
+                    local fallbackAtt = head and head:FindFirstChild("HatAttachment")
+                    if head and fallbackAtt then
+                        weld.Part1 = fallbackAtt.Parent
+                        baseC0 = acc.AttachmentPoint or CFrame.new()
+                        baseC1 = fallbackAtt.CFrame
+                    elseif head then
+                        weld.Part1 = head
+                        baseC0 = CFrame.new()
+                        baseC1 = CFrame.new(0, 0.6, 0)
+                    end
+                end
+                if not weld.Part1 then return end
+
+                vst.AccessoryBaseC0[assetId] = baseC0
+                vst.AccessoryBaseC1[assetId] = baseC1
+                local off = vst.AccessoryOffsets[assetId] or { X = 0, Y = 0, Z = 0, Scale = 1.0 }
+                local scaleVal = off.Scale or 1.0
+
+                if sm and vst.AccessoryBaseMeshScale[assetId] then
+                    sm.Scale = vst.AccessoryBaseMeshScale[assetId] * scaleVal
+                end
+                if handle:IsA("MeshPart") and vst.AccessoryBasePartSize[assetId] then
+                    handle.Size = vst.AccessoryBasePartSize[assetId] * scaleVal
+                end
+
+                local baseRot = baseC0 - baseC0.Position
+                weld.C0 = CFrame.new(baseC0.Position * scaleVal) * baseRot
+                weld.C1 = baseC1 * CFrame.new(off.X or 0, off.Y or 0, -(off.Z or 0))
+                weld.Parent = handle
+            end
+
+            local function applySingleAccessoryAsync(char, assetId)
+                if not char or not assetId then return end
+                local accName = "ChloeX_Acc_" .. tostring(assetId)
+                if char:FindFirstChild(accName) or char:FindFirstChild("ChloeX_HeadAcc_" .. tostring(assetId)) then return end
+
+                local template = accessoryCache[assetId]
+                if template then
+                    local acc = template:Clone()
+                    acc.Name = accName
+                    attachAccessoryWeld(acc, char, assetId)
+                    acc.Parent = char
+                    return
+                end
+
+                if loadingAssets[assetId] then return end
+                loadingAssets[assetId] = true
+
+                task.defer(function()
+                    local s, objs = pcall(function() return game:GetObjects("rbxassetid://" .. assetId) end)
+                    loadingAssets[assetId] = nil
+                    if s and objs and #objs > 0 then
+                        template = objs[1]
+                        accessoryCache[assetId] = template
+
+                        local stillSelected = false
+                        local function check(tbl)
+                            for _, name in ipairs(tbl or {}) do
+                                if getAssetIdByName(name) == assetId then
+                                    stillSelected = true
+                                    return
+                                end
+                            end
+                        end
+                        check(vst.SelectedHeadAccessories)
+                        check(vst.SelectedShoulderAccessories)
+                        check(vst.SelectedBackAccessories)
+
+                        local curChar = getRealCharacter()
+                        if stillSelected and curChar and not curChar:FindFirstChild(accName) and not curChar:FindFirstChild("ChloeX_HeadAcc_" .. tostring(assetId)) then
+                            local acc = template:Clone()
+                            acc.Name = accName
+                            attachAccessoryWeld(acc, curChar, assetId)
+                            acc.Parent = curChar
+                        end
+                    end
+                end)
+            end
+
+            local function syncAllAccessories(char)
+                char = char or getRealCharacter()
+                if not char then return end
+
+                local targetIds = {}
+                local function collect(tbl)
+                    for _, name in ipairs(tbl or {}) do
+                        if name ~= "None" and name ~= "" then
+                            local id = getAssetIdByName(name)
+                            if id then targetIds[id] = name end
+                        end
+                    end
+                end
+                collect(vst.SelectedHeadAccessories)
+                collect(vst.SelectedShoulderAccessories)
+                collect(vst.SelectedBackAccessories)
+
+                for _, child in ipairs(char:GetChildren()) do
+                    if string.sub(child.Name, 1, 11) == "ChloeX_Acc_" then
+                        local id = tonumber(string.sub(child.Name, 12))
+                        if id and not targetIds[id] then child:Destroy() end
+                    elseif string.sub(child.Name, 1, 15) == "ChloeX_HeadAcc_" then
+                        local id = tonumber(string.sub(child.Name, 16))
+                        if id and not targetIds[id] then child:Destroy() end
+                    end
+                end
+
+                for assetId in pairs(targetIds) do
+                    local accName = "ChloeX_Acc_" .. tostring(assetId)
+                    if not char:FindFirstChild(accName) and not char:FindFirstChild("ChloeX_HeadAcc_" .. tostring(assetId)) then
+                        applySingleAccessoryAsync(char, assetId)
+                    end
+                end
+            end
+
+            local secBodyVisual = userTab:AddSection("Body Visual Features", true)
+            local secAccessories = userTab:AddSection("Avatar Accessories", true)
+
+            secBodyVisual:AddToggle({
+                Title = "Korblox Left",
+                Default = false,
+                Callback = function(state)
+                    vst.KorbloxLeft = state
+                    local curChar = getRealCharacter()
+                    if state then applyKorbloxLeft(curChar) else removeKorbloxLeft(curChar) end
+                end,
+            })
+
+            secBodyVisual:AddToggle({
+                Title = "Korblox Right",
+                Default = false,
+                Callback = function(state)
+                    vst.KorbloxRight = state
+                    local curChar = getRealCharacter()
+                    if state then applyKorbloxRight(curChar) else removeKorbloxRight(curChar) end
+                end,
+            })
+
+            secBodyVisual:AddToggle({
+                Title = "Headless Head",
+                Default = false,
+                Callback = function(state)
+                    vst.HeadlessHead = state
+                    local curChar = getRealCharacter()
+                    if state then applyHeadlessVisual(curChar) else removeHeadlessVisual(curChar) end
+                end,
+            })
+
+            secBodyVisual:AddToggle({
+                Title = "DeathWalker Head",
+                Default = false,
+                Callback = function(state)
+                    vst.DeathWalkerHead = state
+                    local curChar = getRealCharacter()
+                    if state then applyDeathWalkerHead(curChar) else removeDeathWalkerHead(curChar) end
+                end,
+            })
+
+            local headDropdown, faceDropdown, shoulderDropdown, backDropdown
+            local equippedDropdown, sliderScale, sliderOffsetY, sliderOffsetX, sliderOffsetZ
+
+            local function getEquippedAccessoryNames()
+                local list = {}
+                local function addNames(tbl)
+                    for _, name in ipairs(tbl or {}) do
+                        if name ~= "None" and name ~= "" and not table.find(list, name) then
+                            table.insert(list, name)
+                        end
+                    end
+                end
+                addNames(vst.SelectedHeadAccessories)
+                addNames(vst.SelectedShoulderAccessories)
+                addNames(vst.SelectedBackAccessories)
+                return list
+            end
+
+            local function updateOffsetSliders(itemName)
+                if not sliderOffsetX or not sliderOffsetY or not sliderOffsetZ or not sliderScale then return end
+                local assetId = itemName and itemName ~= "None" and itemName ~= "" and getAssetIdByName(itemName) or nil
+                local off = assetId and vst.AccessoryOffsets[assetId] or { X = 0, Y = 0, Z = 0, Scale = 1.0 }
+                sliderOffsetX:Set(off.X or 0, true, true)
+                sliderOffsetY:Set(off.Y or 0, true, true)
+                sliderOffsetZ:Set(off.Z or 0, true, true)
+                sliderScale:Set(off.Scale or 1.0, true, true)
+            end
+
+            local function updateEquippedDropdownList()
+                if not equippedDropdown then return end
+                local equippedList = getEquippedAccessoryNames()
+                if #equippedList == 0 then
+                    vst.SelectedEditItem = "None"
+                    equippedDropdown:SetValues({ "None" }, "None", true)
+                    updateOffsetSliders("None")
+                else
+                    if not table.find(equippedList, vst.SelectedEditItem) then
+                        vst.SelectedEditItem = equippedList[1]
+                    end
+                    equippedDropdown:SetValues(equippedList, vst.SelectedEditItem, true)
+                    updateOffsetSliders(vst.SelectedEditItem)
+                end
+            end
+
+            local function setAccessoryScale(scaleVal)
+                local selectedName = vst.SelectedEditItem
+                if not selectedName or selectedName == "None" or selectedName == "" then return end
+                local assetId = getAssetIdByName(selectedName)
+                if not assetId then return end
+                if not vst.AccessoryOffsets[assetId] then
+                    vst.AccessoryOffsets[assetId] = { X = 0, Y = 0, Z = 0, Scale = 1.0 }
+                end
+                vst.AccessoryOffsets[assetId].Scale = scaleVal
+
+                local curChar = getRealCharacter()
+                local acc = curChar and (curChar:FindFirstChild("ChloeX_Acc_" .. tostring(assetId)) or curChar:FindFirstChild("ChloeX_HeadAcc_" .. tostring(assetId)))
+                local handle = acc and acc:FindFirstChild("Handle")
+                if handle then
+                    local sm = handle:FindFirstChildOfClass("SpecialMesh")
+                    if sm and vst.AccessoryBaseMeshScale[assetId] then
+                        sm.Scale = vst.AccessoryBaseMeshScale[assetId] * scaleVal
+                    end
+                    if handle:IsA("MeshPart") and vst.AccessoryBasePartSize[assetId] then
+                        handle.Size = vst.AccessoryBasePartSize[assetId] * scaleVal
+                    end
+                    local weld = handle:FindFirstChild("AccessoryWeld")
+                    local baseC0 = vst.AccessoryBaseC0[assetId]
+                    if weld and baseC0 then
+                        weld.C0 = CFrame.new(baseC0.Position * scaleVal) * (baseC0 - baseC0.Position)
+                    end
+                end
+            end
+
+            local function setAccessoryOffsetAxis(axis, val)
+                local selectedName = vst.SelectedEditItem
+                if not selectedName or selectedName == "None" or selectedName == "" then return end
+                local assetId = getAssetIdByName(selectedName)
+                if not assetId then return end
+                if not vst.AccessoryOffsets[assetId] then
+                    vst.AccessoryOffsets[assetId] = { X = 0, Y = 0, Z = 0, Scale = 1.0 }
+                end
+                vst.AccessoryOffsets[assetId][axis] = val
+
+                local off = vst.AccessoryOffsets[assetId]
+                local curChar = getRealCharacter()
+                local acc = curChar and (curChar:FindFirstChild("ChloeX_Acc_" .. tostring(assetId)) or curChar:FindFirstChild("ChloeX_HeadAcc_" .. tostring(assetId)))
+                local handle = acc and acc:FindFirstChild("Handle")
+                local weld = handle and handle:FindFirstChild("AccessoryWeld")
+                if weld then
+                    local baseC1 = vst.AccessoryBaseC1[assetId] or weld.C1
+                    vst.AccessoryBaseC1[assetId] = baseC1
+                    weld.C1 = baseC1 * CFrame.new(off.X or 0, off.Y or 0, -(off.Z or 0))
+                end
+            end
+
+            headDropdown = secAccessories:AddDropdown({
+                Title = "Head Accessories",
+                Multi = true,
+                Options = makeInitialList(HEAD_ACCESSORIES_FALLBACK),
+                Default = {},
+                Callback = function(chosenList)
+                    if type(chosenList) == "table" and table.find(chosenList, "None") then
+                        vst.SelectedHeadAccessories = {}
+                        syncAllAccessories(getRealCharacter())
+                        if headDropdown and headDropdown.Set then headDropdown:Set({}) end
+                        updateEquippedDropdownList()
+                        return
+                    end
+                    vst.SelectedHeadAccessories = (type(chosenList) == "table" and chosenList) or (chosenList and { chosenList } or {})
+                    syncAllAccessories(getRealCharacter())
+                    updateEquippedDropdownList()
+                end,
+            })
+
+            faceDropdown = secAccessories:AddDropdown({
+                Title = "Faces",
+                Options = facesList,
+                Default = "Default",
+                Callback = function(chosen)
+                    local faceName = (type(chosen) == "table" and chosen[1]) or chosen or "Default"
+                    applyFace(getRealCharacter(), faceName)
+                end,
+            })
+
+            secAccessories:AddInput({
+                Title = "Custom Face Asset ID",
+                Placeholder = "Enter Face ID...",
+                Default = "",
+                Callback = function(text)
+                    local id = tonumber(text)
+                    if id and id > 0 then
+                        applyFace(getRealCharacter(), tostring(id))
+                    end
+                end,
+            })
+
+            shoulderDropdown = secAccessories:AddDropdown({
+                Title = "Shoulder Accessories",
+                Multi = true,
+                Options = makeInitialList(SHOULDER_ACCESSORIES_FALLBACK),
+                Default = {},
+                Callback = function(chosenList)
+                    if type(chosenList) == "table" and table.find(chosenList, "None") then
+                        vst.SelectedShoulderAccessories = {}
+                        syncAllAccessories(getRealCharacter())
+                        if shoulderDropdown and shoulderDropdown.Set then shoulderDropdown:Set({}) end
+                        updateEquippedDropdownList()
+                        return
+                    end
+                    vst.SelectedShoulderAccessories = (type(chosenList) == "table" and chosenList) or (chosenList and { chosenList } or {})
+                    syncAllAccessories(getRealCharacter())
+                    updateEquippedDropdownList()
+                end,
+            })
+
+            backDropdown = secAccessories:AddDropdown({
+                Title = "Back Accessories",
+                Multi = true,
+                Options = makeInitialList(BACK_ACCESSORIES_FALLBACK),
+                Default = {},
+                Callback = function(chosenList)
+                    if type(chosenList) == "table" and table.find(chosenList, "None") then
+                        vst.SelectedBackAccessories = {}
+                        syncAllAccessories(getRealCharacter())
+                        if backDropdown and backDropdown.Set then backDropdown:Set({}) end
+                        updateEquippedDropdownList()
+                        return
+                    end
+                    vst.SelectedBackAccessories = (type(chosenList) == "table" and chosenList) or (chosenList and { chosenList } or {})
+                    syncAllAccessories(getRealCharacter())
+                    updateEquippedDropdownList()
+                end,
+            })
+
+            secAccessories:AddButton({
+                Title = "Clear All Accessories",
+                Callback = function()
+                    vst.SelectedHeadAccessories = {}
+                    vst.SelectedShoulderAccessories = {}
+                    vst.SelectedBackAccessories = {}
+                    vst.SelectedFace = "Default"
+                    local curChar = getRealCharacter()
+                    removeAllAccessories(curChar)
+                    applyFace(curChar, "Default")
+                    if headDropdown and headDropdown.Set then headDropdown:Set({}) end
+                    if faceDropdown and faceDropdown.Set then faceDropdown:Set("Default") end
+                    if shoulderDropdown and shoulderDropdown.Set then shoulderDropdown:Set({}) end
+                    if backDropdown and backDropdown.Set then backDropdown:Set({}) end
+                    updateEquippedDropdownList()
+                end,
+            })
+
+            secAccessories:AddSubSection("Accessory Position & Scale")
+
+            equippedDropdown = secAccessories:AddDropdown({
+                Title = "Equiped Item",
+                Options = { "None" },
+                Default = "None",
+                Callback = function(chosen)
+                    local itemName = (type(chosen) == "table" and chosen[1]) or chosen or "None"
+                    vst.SelectedEditItem = itemName
+                    updateOffsetSliders(itemName)
+                end,
+            })
+
+            sliderScale = secAccessories:AddSlider({
+                Title = "Scale (Size)",
+                Min = 0.1,
+                Max = 3,
+                Default = 1,
+                Increment = 0.05,
+                Precision = 2,
+                Callback = function(val) setAccessoryScale(val) end,
+            })
+
+            sliderOffsetY = secAccessories:AddSlider({
+                Title = "Up / Down (Height)",
+                Min = -3,
+                Max = 3,
+                Default = 0,
+                Increment = 0.05,
+                Precision = 2,
+                Callback = function(val) setAccessoryOffsetAxis("Y", val) end,
+            })
+
+            sliderOffsetX = secAccessories:AddSlider({
+                Title = "Left / Right (Side)",
+                Min = -3,
+                Max = 3,
+                Default = 0,
+                Increment = 0.05,
+                Precision = 2,
+                Callback = function(val) setAccessoryOffsetAxis("X", val) end,
+            })
+
+            sliderOffsetZ = secAccessories:AddSlider({
+                Title = "Front / Back (Depth)",
+                Min = -3,
+                Max = 3,
+                Default = 0,
+                Increment = 0.05,
+                Precision = 2,
+                Callback = function(val) setAccessoryOffsetAxis("Z", val) end,
+            })
+
+            secAccessories:AddButton({
+                Title = "Reset Position & Scale",
+                Callback = function()
+                    local selectedName = vst.SelectedEditItem
+                    if not selectedName or selectedName == "None" or selectedName == "" then return end
+                    local assetId = getAssetIdByName(selectedName)
+                    if not assetId then return end
+                    vst.AccessoryOffsets[assetId] = { X = 0, Y = 0, Z = 0, Scale = 1.0 }
+                    updateOffsetSliders(selectedName)
+                    local curChar = getRealCharacter()
+                    local acc = curChar and (curChar:FindFirstChild("ChloeX_Acc_" .. tostring(assetId)) or curChar:FindFirstChild("ChloeX_HeadAcc_" .. tostring(assetId)))
+                    local handle = acc and acc:FindFirstChild("Handle")
+                    if handle then
+                        local sm = handle:FindFirstChildOfClass("SpecialMesh")
+                        if sm and vst.AccessoryBaseMeshScale[assetId] then sm.Scale = vst.AccessoryBaseMeshScale[assetId] end
+                        if handle:IsA("MeshPart") and vst.AccessoryBasePartSize[assetId] then handle.Size = vst.AccessoryBasePartSize[assetId] end
+                        local weld = handle:FindFirstChild("AccessoryWeld")
+                        if weld then
+                            if vst.AccessoryBaseC0[assetId] then weld.C0 = vst.AccessoryBaseC0[assetId] end
+                            if vst.AccessoryBaseC1[assetId] then weld.C1 = vst.AccessoryBaseC1[assetId] end
+                        end
+                    end
+                end,
+            })
+
+            task.spawn(function()
+                task.wait(0.25)
+                local data = getCachedOrFetchRolimonsAccessories()
+                if data and getgenv and getgenv().ChloeX_Running then
+                    vst.HeadAccessoriesMap = data.HeadMap
+                    vst.ShoulderAccessoriesMap = data.ShoulderMap
+                    vst.BackAccessoriesMap = data.BackMap
+                    if headDropdown and headDropdown.SetValues then
+                        headDropdown:SetValues(data.HeadList, vst.SelectedHeadAccessories or {}, true)
+                    end
+                    if shoulderDropdown and shoulderDropdown.SetValues then
+                        shoulderDropdown:SetValues(data.ShoulderList, vst.SelectedShoulderAccessories or {}, true)
+                    end
+                    if backDropdown and backDropdown.SetValues then
+                        backDropdown:SetValues(data.BackList, vst.SelectedBackAccessories or {}, true)
+                    end
+                end
+            end)
+
+            local myWinRef = getgenv and getgenv().ChloeX_Window
+            local charConn = lp and lp.CharacterAdded:Connect(function(newChar)
+                if not getgenv or not getgenv().ChloeX_Running or getgenv().ChloeX_Window ~= myWinRef then return end
+                task.wait(0.3)
+                local rig = getRealCharacter() or newChar
+                vst.OriginalHead = nil
+                vst.OriginalDeathWalkerHead = nil
+                vst.OriginalFaceTexture = nil
+                if vst.KorbloxLeft then applyKorbloxLeft(rig) end
+                if vst.KorbloxRight then applyKorbloxRight(rig) end
+                if vst.HeadlessHead then applyHeadlessVisual(rig) elseif vst.DeathWalkerHead then applyDeathWalkerHead(rig) end
+                if vst.SelectedFace and vst.SelectedFace ~= "Default" then applyFace(rig, vst.SelectedFace) end
+                syncAllAccessories(rig)
+            end)
+
+            task.spawn(function()
+                while getgenv and getgenv().ChloeX_Running and getgenv().ChloeX_Window == myWinRef do
+                    task.wait(0.4)
+                    local hasVisual = vst.KorbloxRight or vst.KorbloxLeft or vst.HeadlessHead or vst.DeathWalkerHead
+                        or (#(vst.SelectedHeadAccessories or {}) > 0)
+                        or (#(vst.SelectedShoulderAccessories or {}) > 0)
+                        or (#(vst.SelectedBackAccessories or {}) > 0)
+                    if hasVisual then
+                        local curChar = getRealCharacter()
+                        if curChar and curChar.Parent then
+                            if vst.KorbloxRight and not curChar:FindFirstChild("ChloeXKorbloxRight") then
+                                applyKorbloxRight(curChar)
+                            end
+                            if vst.KorbloxLeft and not curChar:FindFirstChild("ChloeXKorbloxLeft_Rig") then
+                                applyKorbloxLeft(curChar)
+                            end
+                            if vst.HeadlessHead then
+                                local head = curChar:FindFirstChild("Head")
+                                if head and head.Transparency < 1 then applyHeadlessVisual(curChar) end
+                            end
+                            if vst.DeathWalkerHead then
+                                local head = curChar:FindFirstChild("Head")
+                                if head and not head:FindFirstChild("LeftEyeFire") then applyDeathWalkerHead(curChar) end
+                            end
+                            syncAllAccessories(curChar)
+                        end
+                    end
+                end
+                if charConn then pcall(function() charConn:Disconnect() end) end
+                local curChar = getRealCharacter()
+                if curChar then
+                    removeKorbloxLeft(curChar)
+                    removeKorbloxRight(curChar)
+                    removeHeadlessVisual(curChar)
+                    removeDeathWalkerHead(curChar)
+                    removeAllAccessories(curChar)
+                end
+            end)
+        end
+
+        if userTab.OnOpen then
+            userTab:OnOpen(initUserVisuals)
+            local cfgData = Window and Window.Config and Window.Config.data
+            if type(cfgData) == "table" then
+                for k, v in pairs(cfgData) do
+                    if type(k) == "string" and k:sub(1, 5) == "User_" and v ~= false and v ~= "" and v ~= "Default" and v ~= "None" then
+                        if type(v) ~= "table" or #v > 0 then
+                            if userTab.Preload then
+                                userTab:Preload()
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        else
+            initUserVisuals()
+        end
+    end
 end
